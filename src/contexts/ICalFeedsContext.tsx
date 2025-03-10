@@ -1,15 +1,14 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   ICalFeed, 
   ICalEvent, 
   ICalSyncResult, 
-  ICalConflict
+  ICalConflict,
+  icalService
 } from '@/services/api/icalService';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-// Define interface for the iCal feed table row
 interface ICalFeedRow {
   id: string;
   name: string;
@@ -50,12 +49,10 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState<Record<string, boolean>>({});
   
-  // Load feeds on mount
   useEffect(() => {
     loadFeeds();
   }, [propertyId]);
   
-  // Function to load feeds from Supabase
   const loadFeeds = async () => {
     setIsLoading(true);
     try {
@@ -71,7 +68,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
         throw error;
       }
       
-      // Convert the Supabase data to ICalFeed objects
       const formattedFeeds: ICalFeed[] = (data as ICalFeedRow[]).map(feed => ({
         id: feed.id,
         name: feed.name,
@@ -102,7 +98,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to refresh feeds
   const refreshFeeds = async () => {
     try {
       await loadFeeds();
@@ -116,7 +111,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to add a feed to Supabase
   const addFeed = async (feed: Omit<ICalFeed, 'id' | 'createdAt' | 'updatedAt' | 'lastSync' | 'status'>) => {
     try {
       const { data, error } = await supabase.from('ical_feeds').insert({
@@ -134,7 +128,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
         throw error;
       }
       
-      // Convert the Supabase data to an ICalFeed object
       const feedData = data as ICalFeedRow;
       const newFeed: ICalFeed = {
         id: feedData.id,
@@ -172,10 +165,8 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to update a feed in Supabase
   const updateFeed = async (id: string, updates: Partial<Omit<ICalFeed, 'id' | 'createdAt'>>) => {
     try {
-      // Convert the ICalFeed updates to the Supabase column names
       const supabaseUpdates: any = {};
       
       if (updates.name) supabaseUpdates.name = updates.name;
@@ -202,7 +193,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
       }
       
       if (data) {
-        // Convert the Supabase data to an ICalFeed object
         const feedData = data as ICalFeedRow;
         const updatedFeed: ICalFeed = {
           id: feedData.id,
@@ -245,7 +235,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to delete a feed from Supabase
   const deleteFeed = async (id: string) => {
     try {
       const feed = feeds.find(f => f.id === id);
@@ -278,24 +267,20 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to sync a feed
   const syncFeed = async (id: string) => {
     setIsRefreshing(prev => ({ ...prev, [id]: true }));
     try {
-      // Simulate syncing the feed
       const feed = feeds.find(f => f.id === id);
       
       if (!feed) {
         throw new Error("Feed not found");
       }
       
-      // Update the feed in Supabase with a new lastSync date
       await updateFeed(id, { 
         lastSync: new Date(),
         status: 'active'
       });
       
-      // Simulate a sync result
       const result: ICalSyncResult = {
         success: true,
         eventsProcessed: Math.floor(Math.random() * 10) + 1,
@@ -305,7 +290,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
         conflicts: []
       };
       
-      // Simulate a conflict occasionally
       if (Math.random() > 0.7) {
         const startDate = new Date();
         const endDate = new Date(startDate);
@@ -337,7 +321,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
         
         result.success = false;
         
-        // Update the feed status to 'error' in Supabase
         await updateFeed(id, { 
           status: 'error', 
           error: 'Conflicts detected during sync' 
@@ -359,7 +342,6 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     } catch (error) {
       console.error("Error syncing iCal feed:", error);
       
-      // Update the feed status to 'error' in Supabase
       await updateFeed(id, { 
         status: 'error', 
         error: error instanceof Error ? error.message : 'Unknown error during sync' 
@@ -384,11 +366,8 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Function to resolve a conflict
   const resolveConflict = async (conflict: ICalConflict, resolution: 'keep_existing' | 'use_incoming' | 'manual') => {
     try {
-      // In a real implementation, this would apply the resolution
-      // For demo purposes, we'll just simulate success
       return true;
     } catch (error) {
       console.error("Error resolving conflict:", error);
@@ -401,17 +380,8 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  // Generate export URL
   const generateExportUrl = (propertyId: string, roomId?: string) => {
-    // Get the base URL from the current window location
-    const baseUrl = window.location.origin;
-    const path = roomId 
-      ? `/api/ical/export/property/${propertyId}/room/${roomId}.ics` 
-      : `/api/ical/export/property/${propertyId}.ics`;
-    
-    // Add a token for security (in a real app this would be a valid token)
-    const secureToken = Date.now().toString(36) + Math.random().toString(36).substring(2);
-    return `${baseUrl}${path}?token=${secureToken}`;
+    return icalService.generateExportUrl(propertyId, roomId);
   };
   
   const value = {

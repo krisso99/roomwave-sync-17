@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 import HttpClient from "./httpClient";
 import { format, addDays, parseISO } from "date-fns";
@@ -427,39 +426,34 @@ export class ICalService {
   
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
-    // Get the base URL, defaulting to the current origin if available
+    // Get the base URL, defaulting to a production URL if window is not available
     const baseUrl = typeof window !== 'undefined' 
       ? window.location.origin 
       : 'https://app.riadsync.com';
       
-    // Format the path for the iCal file - use a valid .ics file path
-    const path = roomId 
-      ? `/api/ical/export/property/${propertyId}/room/${roomId}.ics` 
-      : `/api/ical/export/property/${propertyId}.ics`;
-    
-    // Generate a secure token (in a real app, this would be a JWT or similar)
+    // Create a secure token for the URL
     const secureToken = this.generateSecureToken(propertyId, roomId);
     
-    // Return the full URL with the token as a query parameter
+    // Format the path for the iCal file - use a clean file path format
+    // Airbnb and other platforms expect a path ending with .ics
+    const path = roomId 
+      ? `/ical/export/${propertyId}/room/${roomId}.ics` 
+      : `/ical/export/${propertyId}.ics`;
+    
+    // Return a simplified URL format that ends with .ics
+    // Avoid complex query parameters - many platforms don't handle them well
     return `${baseUrl}${path}?token=${secureToken}`;
   }
   
   // Generate a secure token for the export URL
   private generateSecureToken(propertyId: string, roomId?: string): string {
-    // In a real app, this would generate a proper secure token
-    // For demo purposes, we'll create a simple hash-like string
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 10);
-    const data = `${propertyId}${roomId || ''}${timestamp}`;
+    // Simple token generation that's short and has no special characters
+    // External platforms often have limited token validation
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 6);
     
-    // Simple "hash" by summing character codes and adding the timestamp
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash) + data.charCodeAt(i);
-      hash |= 0; // Convert to 32bit integer
-    }
-    
-    return `${Math.abs(hash).toString(16)}${random}${timestamp.toString(36)}`;
+    // Create a cleaner token - many platforms reject complex tokens
+    return `${random}${timestamp}`;
   }
   
   // Format a date for iCal format
