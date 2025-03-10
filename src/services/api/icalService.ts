@@ -427,18 +427,19 @@ export class ICalService {
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
     try {
-      // Create a URL with proper extension for better compatibility
+      // Get the base URL for our application
       const baseUrl = this.getBaseUrl();
       const timestamp = Date.now(); // Add cache-busting parameter
       
-      // Use a direct .ics extension instead of .js for better compatibility
-      // Many platforms expect .ics extension explicitly
-      let url = `${baseUrl}/api/ical/${propertyId}${roomId ? `-${roomId}` : ''}.ics?t=${timestamp}`;
+      // Use a direct .ics extension for better compatibility with calendar clients
+      // Static approach for production use
+      let url = `${baseUrl}/api/ical/property-${propertyId}${roomId ? `-${roomId}` : ''}.ics?t=${timestamp}`;
       
-      // Fallback to using the generate.js approach as a secondary option
-      if (process.env.NODE_ENV === 'development') {
-        // In development, use the dynamic generator for testing
-        url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}&t=${timestamp}`;
+      // Use PHP generator if we detect it's a server environment that supports it
+      if (window.location.hostname !== 'localhost' && 
+          window.location.hostname !== '127.0.0.1' &&
+          !window.location.hostname.includes('lovableproject.com')) {
+        url = `${baseUrl}/api/ical/generate.php?propertyId=${encodeURIComponent(propertyId)}&t=${timestamp}`;
         
         if (roomId) {
           url += `&roomId=${encodeURIComponent(roomId)}`;

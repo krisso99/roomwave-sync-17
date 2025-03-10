@@ -4,21 +4,31 @@
   ForceType text/calendar
   Header set Content-Type "text/calendar; charset=utf-8"
   Header set Content-Disposition "attachment; filename=calendar.ics"
-</Files>
-
-# Set proper content type for the dynamic generator
-<Files "generate.js">
-  ForceType text/calendar
-  Header set Content-Type "text/calendar; charset=utf-8"
-  Header set Content-Disposition "attachment; filename=calendar.ics"
   Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
   Header set Pragma "no-cache"
   Header set Expires "0"
 </Files>
 
+# Set proper content type for PHP scripts that generate iCal
+<Files "*.php">
+  Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+</Files>
+
+# For when no PHP is available, use a simple text file with .ics extension
+# This makes sure direct .ics file URLs work properly
+<Files "property-*.ics">
+  ForceType text/calendar
+  Header set Content-Type "text/calendar; charset=utf-8"
+  Header set Content-Disposition "attachment; filename=calendar.ics"
+  RewriteEngine On
+  RewriteRule ^property-(.*).ics$ sample.ics [L]
+</Files>
+
 # Prevent caching of iCal feeds
 <IfModule mod_headers.c>
-  <FilesMatch "\.(ics|js)$">
+  <FilesMatch "\.(ics|php)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
     Header set Expires "0"
