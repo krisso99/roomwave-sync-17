@@ -1,0 +1,6 @@
+
+# Force content type for .ics files
+<Files "*.ics">
+  ForceType text/calendar
+  Header set Content-Disposition "attachment; filename=calendar.ics"
+</Files>

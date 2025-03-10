@@ -426,34 +426,36 @@ export class ICalService {
   
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
-    // Get the base URL, defaulting to a production URL if window is not available
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : 'https://app.riadsync.com';
+    try {
+      // For development/demo purposes - generate a hosted URL that can be accessed directly
+      // This is necessary for external platforms to validate the iCal feed
       
-    // Create a simple identifier for the feed
-    const resourceId = roomId 
-      ? `${propertyId}-room-${roomId}` 
-      : propertyId;
-    
-    // Generate a simple token (avoid special characters)
-    const timestamp = Date.now().toString(36).slice(-6);
-    const token = `t${timestamp}`;
-    
-    // Create a clean filename-style path ending with .ics extension
-    // This format is widely accepted by calendar applications
-    return `${baseUrl}/calendar/${resourceId}/${token}.ics`;
+      // Create an encoded identifier for the feed (Base64 encode the property/room info)
+      const resourceInfo = {
+        propertyId,
+        roomId: roomId || null,
+        timestamp: Date.now()
+      };
+      
+      const resourceIdEncoded = btoa(JSON.stringify(resourceInfo))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      
+      // Generate a direct URL to our API endpoint
+      // This needs to be a publicly accessible endpoint that returns valid iCal data
+      return `${this.getBaseUrl()}/api/ical/${resourceIdEncoded}.ics`;
+    } catch (error) {
+      console.error("Error generating iCal URL:", error);
+      return `${this.getBaseUrl()}/api/ical/error.ics`;
+    }
   }
   
-  // Generate a secure token for the export URL
-  private generateSecureToken(propertyId: string, roomId?: string): string {
-    // Simple token generation that's short and has no special characters
-    // External platforms often have limited token validation
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 6);
-    
-    // Create a cleaner token - many platforms reject complex tokens
-    return `${random}${timestamp}`;
+  // Get the base URL of the application
+  private getBaseUrl(): string {
+    return typeof window !== 'undefined' 
+      ? window.location.origin
+      : 'https://app.riadsync.com';
   }
   
   // Format a date for iCal format
