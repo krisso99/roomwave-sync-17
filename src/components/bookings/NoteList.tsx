@@ -1,13 +1,12 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { FileText, User } from 'lucide-react';
-import { Note } from '@/contexts/BookingContext';
-import { cn } from '@/lib/utils';
+import { FileText } from 'lucide-react';
+import { BookingNote } from '@/contexts/BookingContext';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface NoteListProps {
-  notes: Note[];
+  notes: BookingNote[];
 }
 
 export const NoteList: React.FC<NoteListProps> = ({ notes }) => {
