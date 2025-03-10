@@ -427,16 +427,13 @@ export class ICalService {
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
     try {
-      // Create a direct URL to our static iCal file
+      // Create a URL to our dynamic iCal generator
       const baseUrl = this.getBaseUrl();
-      let url = `${baseUrl}/api/ical/sample.ics`;
+      let url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}`;
       
-      // For a real implementation where we can dynamically generate iCal content
-      // based on property and room, use:
-      // let url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}`;
-      // if (roomId) {
-      //   url += `&roomId=${encodeURIComponent(roomId)}`;
-      // }
+      if (roomId) {
+        url += `&roomId=${encodeURIComponent(roomId)}`;
+      }
       
       return url;
     } catch (error) {

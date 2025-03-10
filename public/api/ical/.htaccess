@@ -4,3 +4,10 @@
   ForceType text/calendar
   Header set Content-Disposition "attachment; filename=calendar.ics"
 </Files>
+
+# Set proper content type for the dynamic generator
+<Files "generate.js">
+  ForceType text/calendar
+  Header set Content-Type "text/calendar; charset=utf-8"
+  Header set Content-Disposition "attachment; filename=calendar.ics"
+</Files>
