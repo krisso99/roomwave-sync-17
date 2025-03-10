@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ICalConflict } from '@/services/api/icalService';
+import { toast } from '@/hooks/use-toast';
 
 interface ICalConflictResolverProps {
   conflicts: ICalConflict[];
@@ -33,6 +34,31 @@ const ICalConflictResolver: React.FC<ICalConflictResolverProps> = ({
   if (conflicts.length === 0) {
     return null;
   }
+
+  const handleResolve = async (conflict: ICalConflict, resolution: 'keep_existing' | 'use_incoming' | 'manual') => {
+    try {
+      await onResolve(conflict, resolution);
+      
+      const resolutionText = {
+        'keep_existing': 'Kept existing booking',
+        'use_incoming': 'Used incoming booking',
+        'manual': 'Set for manual resolution'
+      }[resolution];
+      
+      toast({
+        title: "Conflict Resolved",
+        description: resolutionText,
+      });
+    } catch (error) {
+      console.error("Error resolving conflict:", error);
+      
+      toast({
+        title: "Error",
+        description: "Failed to resolve the conflict. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -113,7 +139,7 @@ const ICalConflictResolver: React.FC<ICalConflictResolverProps> = ({
             <Button 
               variant="outline"
               className="border-green-500 text-green-600 hover:bg-green-50 w-full sm:w-auto"
-              onClick={() => onResolve(conflict, 'keep_existing')}
+              onClick={() => handleResolve(conflict, 'keep_existing')}
             >
               <CheckSquare className="h-4 w-4 mr-2" />
               Keep Existing
@@ -121,7 +147,7 @@ const ICalConflictResolver: React.FC<ICalConflictResolverProps> = ({
             <Button 
               variant="outline"
               className="border-blue-500 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
-              onClick={() => onResolve(conflict, 'use_incoming')}
+              onClick={() => handleResolve(conflict, 'use_incoming')}
             >
               <XSquare className="h-4 w-4 mr-2" />
               Use Incoming
@@ -129,7 +155,7 @@ const ICalConflictResolver: React.FC<ICalConflictResolverProps> = ({
             <Button
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => onResolve(conflict, 'manual')}
+              onClick={() => handleResolve(conflict, 'manual')}
             >
               Resolve Manually
             </Button>
