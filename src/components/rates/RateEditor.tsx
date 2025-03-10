@@ -37,6 +37,7 @@ interface RateEditorProps {
   onCancel: () => void;
 }
 
+// Update the schema to match the form structure exactly
 const rateFormSchema = z.object({
   roomTypeId: z.string({
     required_error: 'Please select a room type',
@@ -53,6 +54,8 @@ const rateFormSchema = z.object({
   minimumStay: z.coerce.number().int().nonnegative().optional(),
   notes: z.string().optional(),
 });
+
+type RateFormValues = z.infer<typeof rateFormSchema>;
 
 const dayOptions: { label: string; value: DayOfWeek }[] = [
   { label: 'Monday', value: 'monday' },
@@ -72,15 +75,21 @@ const RateEditor: React.FC<RateEditorProps> = ({
 }) => {
   const { addRateRule, updateRateRule } = useRates();
   
-  // Default values for the form
-  const defaultValues = rateRule
+  // Fix the default values to match the form schema
+  const defaultValues: RateFormValues = rateRule
     ? {
-        ...rateRule,
+        roomTypeId: rateRule.roomTypeId,
+        name: rateRule.name,
+        type: rateRule.type === 'promotion' ? 'special' : rateRule.type, // Handle promotion type
+        amount: rateRule.amount,
+        currency: rateRule.currency,
         startDate: rateRule.startDate ? new Date(rateRule.startDate) : undefined,
         endDate: rateRule.endDate ? new Date(rateRule.endDate) : undefined,
-        daysOfWeek: rateRule.daysOfWeek || [],
-        seasonName: rateRule.type === 'seasonal' ? (rateRule as any).seasonName : '',
-        eventName: rateRule.type === 'special' ? (rateRule as any).eventName : '',
+        daysOfWeek: rateRule.daysOfWeek?.map(day => day.toString()) || [],
+        minimumStay: rateRule.minimumStay,
+        notes: rateRule.notes,
+        seasonName: rateRule.type === 'seasonal' ? (rateRule as any).seasonName : undefined,
+        eventName: rateRule.type === 'special' ? (rateRule as any).eventName : undefined,
       }
     : {
         roomTypeId: roomTypes[0]?.id || '',
@@ -91,7 +100,7 @@ const RateEditor: React.FC<RateEditorProps> = ({
         daysOfWeek: [],
       };
 
-  const form = useForm<z.infer<typeof rateFormSchema>>({
+  const form = useForm<RateFormValues>({
     resolver: zodResolver(rateFormSchema),
     defaultValues,
   });
@@ -103,7 +112,7 @@ const RateEditor: React.FC<RateEditorProps> = ({
   // Get selected room type
   const selectedRoomType = roomTypes.find(rt => rt.id === selectedRoomTypeId);
 
-  const onSubmit = async (values: z.infer<typeof rateFormSchema>) => {
+  const onSubmit = async (values: RateFormValues) => {
     try {
       // Prepare data based on rate type
       const rateData: any = {

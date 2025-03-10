@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { useRates, RoomType } from '@/contexts/RateContext';
+import { useRates, RoomType, DayOfWeek } from '@/contexts/RateContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
@@ -105,7 +105,7 @@ const RateCalendarView: React.FC<RateCalendarViewProps> = ({
 
       // Check day of week if applicable
       if (rule.daysOfWeek && rule.daysOfWeek.length > 0) {
-        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()];
+        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()] as DayOfWeek;
         if (!rule.daysOfWeek.includes(dayOfWeek)) return false;
       }
 
