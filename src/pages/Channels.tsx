@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
@@ -11,7 +12,11 @@ import {
   Layers,
   Building,
   Home,
-  Calendar
+  Calendar,
+  CalendarDays,
+  FileText,
+  Copy,
+  Pencil
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,9 +30,15 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
 import { PlatformIntegrationsProvider, usePlatformIntegrations } from '@/contexts/PlatformIntegrationsContext';
+import { ICalFeedsProvider, useICalFeeds } from '@/contexts/ICalFeedsContext';
 import PlatformStatusCard from '@/components/channels/PlatformStatusCard';
 import PlatformIntegrationForm from '@/components/channels/PlatformIntegrationForm';
+import ICalFeedCard from '@/components/channels/ICalFeedCard';
+import ICalFeedForm from '@/components/channels/ICalFeedForm';
+import ICalConflictResolver from '@/components/channels/ICalConflictResolver';
+import ICalLimitations from '@/components/channels/ICalLimitations';
 import { PlatformCredentials, SyncOptions } from '@/services/api/bookingPlatforms';
+import { ICalFeed, ICalConflict } from '@/services/api/icalService';
 
 // Icons for each platform
 const platformIcons: Record<string, React.ReactNode> = {
@@ -39,10 +50,15 @@ const platformIcons: Record<string, React.ReactNode> = {
 const ChannelsContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
-  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [isPlatformDialogOpen, setIsPlatformDialogOpen] = useState(false);
+  const [isICalDialogOpen, setIsICalDialogOpen] = useState(false);
+  const [isICalInfoOpen, setIsICalInfoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('platforms');
   const [showSyncIssues, setShowSyncIssues] = useState<boolean>(false);
+  const [selectedICalFeed, setSelectedICalFeed] = useState<ICalFeed | null>(null);
+  const [iCalConflicts, setICalConflicts] = useState<ICalConflict[]>([]);
   
+  // Platform integrations context
   const { 
     platforms, 
     supportedPlatforms, 
@@ -52,18 +68,38 @@ const ChannelsContent = () => {
     syncPlatform, 
     configurePlatformSync,
     isConnecting,
-    isSyncing,
+    isSyncing: isPlatformSyncing,
   } = usePlatformIntegrations();
+  
+  // iCal feeds context
+  const {
+    feeds: icalFeeds,
+    isLoading: isLoadingFeeds,
+    isRefreshing: isICalSyncing,
+    refreshFeeds,
+    addFeed,
+    updateFeed,
+    deleteFeed,
+    syncFeed,
+    resolveConflict
+  } = useICalFeeds();
   
   // Filter platforms based on search query
   const filteredPlatforms = supportedPlatforms.filter(platform => 
     platform.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
+  // Filter iCal feeds based on search query
+  const filteredICalFeeds = icalFeeds.filter(feed => 
+    feed.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    feed.url.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
   // Calculate if we have any sync issues
   useEffect(() => {
     let hasIssues = false;
     
+    // Check API platforms for issues
     for (const platform of supportedPlatforms) {
       const status = getPlatformStatus(platform);
       if (status && status.connected && status.errorCount > 0) {
@@ -72,13 +108,29 @@ const ChannelsContent = () => {
       }
     }
     
+    // Check iCal feeds for issues
+    if (!hasIssues) {
+      for (const feed of icalFeeds) {
+        if (feed.status === 'error') {
+          hasIssues = true;
+          break;
+        }
+      }
+    }
+    
     setShowSyncIssues(hasIssues);
-  }, [supportedPlatforms, getPlatformStatus]);
+  }, [supportedPlatforms, getPlatformStatus, icalFeeds]);
   
   // Handle platform configuration
   const handleConfigurePlatform = (platform: string) => {
     setSelectedPlatform(platform);
-    setIsConfigDialogOpen(true);
+    setIsPlatformDialogOpen(true);
+  };
+  
+  // Handle iCal feed configuration
+  const handleConfigureICalFeed = (feed: ICalFeed | null = null) => {
+    setSelectedICalFeed(feed);
+    setIsICalDialogOpen(true);
   };
   
   // Handle connection to a platform
@@ -151,6 +203,97 @@ const ChannelsContent = () => {
     configurePlatformSync(selectedPlatform, options);
   };
   
+  // Handle iCal feed form submission
+  const handleICalFormSubmit = async (values: any) => {
+    try {
+      if (selectedICalFeed) {
+        // Update existing feed
+        await updateFeed(selectedICalFeed.id, values);
+      } else {
+        // Add new feed
+        await addFeed(values);
+      }
+      
+      setIsICalDialogOpen(false);
+      refreshFeeds();
+    } catch (error) {
+      console.error("Error saving iCal feed:", error);
+    }
+  };
+  
+  // Handle iCal feed deletion
+  const handleDeleteICalFeed = async (id: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this feed?");
+    if (confirmed) {
+      await deleteFeed(id);
+    }
+  };
+  
+  // Handle iCal feed sync
+  const handleSyncICalFeed = async (id: string) => {
+    try {
+      const result = await syncFeed(id);
+      
+      // Check if there are conflicts
+      if (result.conflicts.length > 0) {
+        setICalConflicts(result.conflicts);
+      }
+      
+      return result.success;
+    } catch (error) {
+      console.error('Error syncing iCal feed:', error);
+      return false;
+    }
+  };
+  
+  // Handle conflict resolution
+  const handleResolveConflict = async (conflict: ICalConflict, resolution: 'keep_existing' | 'use_incoming' | 'manual') => {
+    try {
+      await resolveConflict(conflict, resolution);
+      
+      // Remove the resolved conflict from the list
+      setICalConflicts(current => 
+        current.filter(c => 
+          c.existingEvent.uid !== conflict.existingEvent.uid || 
+          c.incomingEvent.uid !== conflict.incomingEvent.uid
+        )
+      );
+      
+      toast({
+        title: "Conflict Resolved",
+        description: `The booking conflict has been resolved using the "${
+          resolution === 'keep_existing' ? 'keep existing booking' : 
+          resolution === 'use_incoming' ? 'use incoming booking' : 
+          'manual resolution'
+        }" method.`,
+      });
+    } catch (error) {
+      console.error('Error resolving conflict:', error);
+      toast({
+        title: "Resolution Failed",
+        description: "Failed to resolve the booking conflict.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Copy iCal URL to clipboard
+  const handleCopyICalUrl = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => {
+      toast({
+        title: "URL Copied",
+        description: "The iCal URL has been copied to your clipboard.",
+      });
+    }).catch(err => {
+      console.error('Failed to copy URL:', err);
+      toast({
+        title: "Copy Failed",
+        description: "Failed to copy the URL to clipboard.",
+        variant: "destructive",
+      });
+    });
+  };
+  
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
@@ -170,7 +313,7 @@ const ChannelsContent = () => {
       </div>
 
       {/* Channels Tabs */}
-      <Tabs defaultValue="platforms" onValueChange={setActiveTab} className="mb-6">
+      <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="mb-6">
         <TabsList>
           <TabsTrigger value="platforms">API Platforms</TabsTrigger>
           <TabsTrigger value="ical">iCal Feeds</TabsTrigger>
@@ -186,7 +329,7 @@ const ChannelsContent = () => {
       </Tabs>
 
       {/* Platform Integration Dialog */}
-      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+      <Dialog open={isPlatformDialogOpen} onOpenChange={setIsPlatformDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{selectedPlatform} Integration</DialogTitle>
@@ -201,6 +344,34 @@ const ChannelsContent = () => {
               isConnecting={isConnecting[selectedPlatform] || false}
             />
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* iCal Feed Dialog */}
+      <Dialog open={isICalDialogOpen} onOpenChange={setIsICalDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedICalFeed ? `Edit ${selectedICalFeed.name}` : 'Add iCal Feed'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <ICalFeedForm
+            feed={selectedICalFeed || undefined}
+            onSubmit={handleICalFormSubmit}
+            onCancel={() => setIsICalDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      
+      {/* iCal Information Dialog */}
+      <Dialog open={isICalInfoOpen} onOpenChange={setIsICalInfoOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Understanding iCal Synchronization</DialogTitle>
+          </DialogHeader>
+          
+          <ICalLimitations />
         </DialogContent>
       </Dialog>
 
@@ -225,7 +396,7 @@ const ChannelsContent = () => {
                   onSync={() => handleSyncPlatform(platform)}
                   onDisconnect={() => handleDisconnectPlatform(platform)}
                   onConfigure={() => handleConfigurePlatform(platform)}
-                  isSyncing={isSyncing[platform] || false}
+                  isSyncing={isPlatformSyncing[platform] || false}
                   platformIcon={platformIcons[platform]}
                 />
               );
@@ -254,21 +425,112 @@ const ChannelsContent = () => {
         </div>
       )}
 
-      {/* iCal Feeds Tab - This is a placeholder for the existing iCal functionality */}
+      {/* iCal Feeds Tab */}
       {activeTab === 'ical' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="col-span-full flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border border-dashed">
-            <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">iCal Integration</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Import and export iCal feeds for your properties.
-            </p>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add iCal Feed
-            </Button>
+        <>
+          {/* Show conflicts if any exist */}
+          {iCalConflicts.length > 0 && (
+            <div className="mb-6">
+              <ICalConflictResolver 
+                conflicts={iCalConflicts} 
+                onResolve={handleResolveConflict} 
+              />
+            </div>
+          )}
+        
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center space-x-2">
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-lg font-medium">iCal Calendar Feeds</h2>
+            </div>
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsICalInfoOpen(true)}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                About iCal
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => handleConfigureICalFeed()}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Feed
+              </Button>
+            </div>
           </div>
-        </div>
+          
+          {/* Our iCal Export */}
+          <div className="mb-6 p-4 border rounded-lg bg-slate-50">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 className="font-medium">Your Property's iCal Export URL</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Share this URL with external platforms to export your property's availability
+                </p>
+              </div>
+              <div className="flex space-x-2 w-full sm:w-auto">
+                <Input 
+                  readOnly 
+                  value="https://app.example.com/ical/property/123456.ics"
+                  className="text-xs font-mono bg-white"
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => handleCopyICalUrl("https://app.example.com/ical/property/123456.ics")}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* iCal Feeds List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {isLoadingFeeds ? (
+              // Loading state
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-48 rounded-lg bg-muted animate-pulse" />
+              ))
+            ) : filteredICalFeeds.length > 0 ? (
+              // Display feeds
+              filteredICalFeeds.map((feed) => (
+                <ICalFeedCard
+                  key={feed.id}
+                  feed={feed}
+                  onSync={() => handleSyncICalFeed(feed.id)}
+                  onEdit={() => handleConfigureICalFeed(feed)}
+                  onDelete={(id) => handleDeleteICalFeed(id)}
+                  isSyncing={isICalSyncing[feed.id] || false}
+                />
+              ))
+            ) : (
+              // No feeds found
+              <div className="col-span-full flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border border-dashed">
+                <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No iCal feeds found</h3>
+                <p className="text-muted-foreground text-center mb-4">
+                  {searchQuery ? 
+                    `No feeds match your search "${searchQuery}".` : 
+                    "Add your first iCal feed to synchronize with external platforms."}
+                </p>
+                {searchQuery ? (
+                  <Button variant="outline" onClick={() => setSearchQuery('')}>
+                    Clear Search
+                  </Button>
+                ) : (
+                  <Button onClick={() => handleConfigureICalFeed()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Your First iCal Feed
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Issues Tab */}
@@ -284,6 +546,7 @@ const ChannelsContent = () => {
             </div>
           </div>
           
+          {/* API Platform Issues */}
           {supportedPlatforms.map(platform => {
             const status = getPlatformStatus(platform);
             
@@ -307,10 +570,10 @@ const ChannelsContent = () => {
                       size="sm" 
                       variant="outline" 
                       onClick={() => handleSyncPlatform(platform)}
-                      disabled={isSyncing[platform]}
+                      disabled={isPlatformSyncing[platform]}
                     >
-                      <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing[platform] ? 'animate-spin' : ''}`} />
-                      {isSyncing[platform] ? 'Retrying...' : 'Retry Sync'}
+                      <RefreshCw className={`mr-2 h-4 w-4 ${isPlatformSyncing[platform] ? 'animate-spin' : ''}`} />
+                      {isPlatformSyncing[platform] ? 'Retrying...' : 'Retry Sync'}
                     </Button>
                     <Button 
                       size="sm" 
@@ -325,17 +588,65 @@ const ChannelsContent = () => {
             
             return null;
           })}
+          
+          {/* iCal Feed Issues */}
+          {icalFeeds.map(feed => {
+            if (feed.status === 'error') {
+              return (
+                <div key={feed.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex justify-between mb-2">
+                    <div className="flex items-center">
+                      <Calendar className="h-5 w-5 text-muted-foreground" />
+                      <h3 className="font-medium ml-2">{feed.name}</h3>
+                    </div>
+                    <Badge variant="destructive">
+                      Error
+                    </Badge>
+                  </div>
+                  <p className="text-sm mb-2 truncate">
+                    {feed.url}
+                  </p>
+                  <p className="text-sm mb-3 text-red-600">
+                    {feed.error || 'Unknown error during synchronization'}
+                  </p>
+                  <div className="flex justify-end space-x-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleSyncICalFeed(feed.id)}
+                      disabled={isICalSyncing[feed.id]}
+                    >
+                      <RefreshCw className={`mr-2 h-4 w-4 ${isICalSyncing[feed.id] ? 'animate-spin' : ''}`} />
+                      {isICalSyncing[feed.id] ? 'Retrying...' : 'Retry Sync'}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleConfigureICalFeed(feed)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            
+            return null;
+          })}
         </div>
       )}
     </div>
   );
 };
 
-// Wrap the component with the Provider
+// Wrap the component with the Providers
 const Channels = () => {
   return (
     <PlatformIntegrationsProvider>
-      <ChannelsContent />
+      <ICalFeedsProvider>
+        <ChannelsContent />
+      </ICalFeedsProvider>
     </PlatformIntegrationsProvider>
   );
 };
