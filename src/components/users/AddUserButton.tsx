@@ -13,6 +13,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const AddUserButton = () => {
   const [open, setOpen] = useState(false);
@@ -80,16 +87,17 @@ const AddUserButton = () => {
             
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <select 
-                id="role" 
-                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                value={role} 
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option>User</option>
-                <option>Admin</option>
-                <option>Manager</option>
-              </select>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="User">User</SelectItem>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Manager">Manager</SelectItem>
+                  <SelectItem value="Staff">Staff</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <DialogFooter>
