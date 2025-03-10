@@ -20,10 +20,12 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import CheckInOut from "./pages/CheckInOut";
+import RateManagement from "./pages/RateManagement"; // Add new import
 
 // Context Providers
 import { PlatformIntegrationsProvider } from "./contexts/PlatformIntegrationsContext";
 import { BookingProvider } from "./contexts/BookingContext";
+import { RateProvider } from "./contexts/RateContext"; // Add new import
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,25 +41,28 @@ const App = () => (
     <TooltipProvider>
       <PlatformIntegrationsProvider>
         <BookingProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/app" element={<MainLayout />}>
-                <Route index element={<Dashboard />} />
-                <Route path="properties" element={<Properties />} />
-                <Route path="properties/:id" element={<PropertyDetail />} />
-                <Route path="bookings" element={<Bookings />} />
-                <Route path="bookings/:id" element={<BookingDetail />} />
-                <Route path="check-in-out" element={<CheckInOut />} />
-                <Route path="channels" element={<Channels />} />
-                <Route path="calendar" element={<CalendarView />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <RateProvider> {/* Add new provider */}
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/app" element={<MainLayout />}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="properties" element={<Properties />} />
+                  <Route path="properties/:id" element={<PropertyDetail />} />
+                  <Route path="bookings" element={<Bookings />} />
+                  <Route path="bookings/:id" element={<BookingDetail />} />
+                  <Route path="check-in-out" element={<CheckInOut />} />
+                  <Route path="channels" element={<Channels />} />
+                  <Route path="rates" element={<RateManagement />} /> {/* Add new route */}
+                  <Route path="calendar" element={<CalendarView />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </RateProvider>
         </BookingProvider>
       </PlatformIntegrationsProvider>
     </TooltipProvider>
