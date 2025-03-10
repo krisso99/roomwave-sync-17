@@ -13,14 +13,17 @@ import Dashboard from "./pages/Dashboard";
 import Properties from "./pages/Properties";
 import PropertyDetail from "./pages/PropertyDetail";
 import Bookings from "./pages/Bookings";
+import BookingDetail from "./pages/BookingDetail";
 import Channels from "./pages/Channels";
 import CalendarView from "./pages/CalendarView";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
+import CheckInOut from "./pages/CheckInOut";
 
 // Context Providers
 import { PlatformIntegrationsProvider } from "./contexts/PlatformIntegrationsContext";
+import { BookingProvider } from "./contexts/BookingContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,23 +38,27 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <PlatformIntegrationsProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/app" element={<MainLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="properties" element={<Properties />} />
-              <Route path="properties/:id" element={<PropertyDetail />} />
-              <Route path="bookings" element={<Bookings />} />
-              <Route path="channels" element={<Channels />} />
-              <Route path="calendar" element={<CalendarView />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <BookingProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/app" element={<MainLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="properties" element={<Properties />} />
+                <Route path="properties/:id" element={<PropertyDetail />} />
+                <Route path="bookings" element={<Bookings />} />
+                <Route path="bookings/:id" element={<BookingDetail />} />
+                <Route path="check-in-out" element={<CheckInOut />} />
+                <Route path="channels" element={<Channels />} />
+                <Route path="calendar" element={<CalendarView />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </BookingProvider>
       </PlatformIntegrationsProvider>
     </TooltipProvider>
   </QueryClientProvider>
