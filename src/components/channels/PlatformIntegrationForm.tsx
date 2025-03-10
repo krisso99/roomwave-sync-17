@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,22 +13,32 @@ import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { PlatformCredentials, SyncOptions } from '@/services/api/bookingPlatforms';
 
+const bookingComSchema = z.object({
+  apiKey: z.string().min(1, 'API Key is required'),
+  secretKey: z.string().min(1, 'Secret Key is required'),
+  hotelId: z.string().min(1, 'Hotel ID is required'),
+});
+
+const expediaSchema = z.object({
+  apiKey: z.string().min(1, 'API Key is required'),
+  secretKey: z.string().min(1, 'Secret Key is required'),
+  hotelId: z.string().min(1, 'Hotel ID is required'),
+  endpoint: z.string().optional(),
+});
+
+const airbnbSchema = z.object({
+  apiKey: z.string().min(1, 'API Key is required'),
+  userId: z.string().min(1, 'User ID is required'),
+});
+
+type BookingComFormType = z.infer<typeof bookingComSchema>;
+type ExpediaFormType = z.infer<typeof expediaSchema>;
+type AirbnbFormType = z.infer<typeof airbnbSchema>;
+
 const platformSchemas = {
-  'Booking.com': z.object({
-    apiKey: z.string().min(1, 'API Key is required'),
-    secretKey: z.string().min(1, 'Secret Key is required'),
-    hotelId: z.string().min(1, 'Hotel ID is required'),
-  }),
-  'Expedia': z.object({
-    apiKey: z.string().min(1, 'API Key is required'),
-    secretKey: z.string().min(1, 'Secret Key is required'),
-    hotelId: z.string().min(1, 'Hotel ID is required'),
-    endpoint: z.string().optional(),
-  }),
-  'Airbnb': z.object({
-    apiKey: z.string().min(1, 'API Key is required'),
-    userId: z.string().min(1, 'User ID is required'),
-  }),
+  'Booking.com': bookingComSchema,
+  'Expedia': expediaSchema,
+  'Airbnb': airbnbSchema,
 };
 
 const syncOptionsSchema = z.object({
@@ -43,6 +52,8 @@ const syncOptionsSchema = z.object({
     bookings: z.boolean().default(true),
   }),
 });
+
+type SyncOptionsFormType = z.infer<typeof syncOptionsSchema>;
 
 type PlatformIntegrationFormProps = {
   platform: string;
@@ -61,20 +72,45 @@ export const PlatformIntegrationForm: React.FC<PlatformIntegrationFormProps> = (
 }) => {
   const [activeTab, setActiveTab] = useState<string>(isConnected ? 'sync' : 'credentials');
   
-  // Get the appropriate schema based on the platform
-  const credentialsSchema = platformSchemas[platform as keyof typeof platformSchemas] || 
-    z.object({ apiKey: z.string().min(1, 'API Key is required') });
+  let credentialsForm;
   
-  // Create the form
-  const credentialsForm = useForm<z.infer<typeof credentialsSchema>>({
-    resolver: zodResolver(credentialsSchema),
-    defaultValues: {
-      apiKey: '',
-      secretKey: '',
-    },
-  });
+  if (platform === 'Booking.com') {
+    credentialsForm = useForm<BookingComFormType>({
+      resolver: zodResolver(bookingComSchema),
+      defaultValues: {
+        apiKey: '',
+        secretKey: '',
+        hotelId: '',
+      },
+    });
+  } else if (platform === 'Expedia') {
+    credentialsForm = useForm<ExpediaFormType>({
+      resolver: zodResolver(expediaSchema),
+      defaultValues: {
+        apiKey: '',
+        secretKey: '',
+        hotelId: '',
+        endpoint: '',
+      },
+    });
+  } else if (platform === 'Airbnb') {
+    credentialsForm = useForm<AirbnbFormType>({
+      resolver: zodResolver(airbnbSchema),
+      defaultValues: {
+        apiKey: '',
+        userId: '',
+      },
+    });
+  } else {
+    credentialsForm = useForm<{ apiKey: string }>({
+      resolver: zodResolver(z.object({ apiKey: z.string().min(1, 'API Key is required') })),
+      defaultValues: {
+        apiKey: '',
+      },
+    });
+  }
   
-  const syncForm = useForm<z.infer<typeof syncOptionsSchema>>({
+  const syncForm = useForm<SyncOptionsFormType>({
     resolver: zodResolver(syncOptionsSchema),
     defaultValues: {
       autoSync: true,
@@ -89,14 +125,13 @@ export const PlatformIntegrationForm: React.FC<PlatformIntegrationFormProps> = (
     },
   });
   
-  const handleConnect = async (data: z.infer<typeof credentialsSchema>) => {
+  const handleConnect = async (data: any) => {
     try {
-      // Convert the form data to PlatformCredentials type
       const credentials: PlatformCredentials = {
         apiKey: data.apiKey,
-        secretKey: (data as any).secretKey,
-        partnerId: (data as any).hotelId || (data as any).userId,
-        endpoint: (data as any).endpoint,
+        secretKey: data.secretKey,
+        partnerId: data.hotelId || data.userId,
+        endpoint: data.endpoint,
       };
       
       const success = await onConnect(credentials);
@@ -114,8 +149,20 @@ export const PlatformIntegrationForm: React.FC<PlatformIntegrationFormProps> = (
     }
   };
   
-  const handleSyncConfig = (data: z.infer<typeof syncOptionsSchema>) => {
-    onConfigureSync(data);
+  const handleSyncConfig = (data: SyncOptionsFormType) => {
+    const syncOptions: SyncOptions = {
+      autoSync: data.autoSync,
+      syncInterval: data.syncInterval,
+      retryAttempts: data.retryAttempts,
+      syncItems: {
+        availability: data.syncItems.availability,
+        rates: data.syncItems.rates,
+        restrictions: data.syncItems.restrictions,
+        bookings: data.syncItems.bookings,
+      },
+    };
+    
+    onConfigureSync(syncOptions);
     
     toast({
       title: 'Sync Configuration Updated',
