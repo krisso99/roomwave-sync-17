@@ -1,19 +1,26 @@
 
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Copy } from 'lucide-react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 import { DateRange } from 'react-day-picker';
-import { useRates, RoomType } from '@/contexts/RateContext';
+import { format } from 'date-fns';
+import { DollarSign, Percent } from 'lucide-react';
+import { RoomType, useRates } from '@/contexts/RateContext';
 import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useToast } from '@/components/ui/use-toast';
-import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/use-toast';
 
 interface BulkRateUpdateProps {
   roomTypes: RoomType[];
@@ -23,6 +30,19 @@ interface BulkRateUpdateProps {
   onCancel: () => void;
 }
 
+const bulkUpdateSchema = z.object({
+  adjustmentType: z.enum(['fixed', 'percentage']),
+  amount: z.coerce.number()
+    .refine(val => val !== 0, {
+      message: 'Amount cannot be zero',
+    }),
+  roomTypeIds: z.array(z.string()).min(1, {
+    message: 'Please select at least one room type',
+  }),
+});
+
+type BulkUpdateFormValues = z.infer<typeof bulkUpdateSchema>;
+
 const BulkRateUpdate: React.FC<BulkRateUpdateProps> = ({
   roomTypes,
   selectedRoomTypes,
@@ -30,359 +50,222 @@ const BulkRateUpdate: React.FC<BulkRateUpdateProps> = ({
   onComplete,
   onCancel,
 }) => {
-  const { bulkUpdateRates, copyRates } = useRates();
-  const { toast } = useToast();
-  
-  const [activeTab, setActiveTab] = useState('update');
-  const [updateAmount, setUpdateAmount] = useState('10');
-  const [isPercentage, setIsPercentage] = useState(true);
-  const [updateRoomTypes, setUpdateRoomTypes] = useState<string[]>(selectedRoomTypes);
-  const [localDateRange, setLocalDateRange] = useState<DateRange | undefined>(dateRange);
-  
-  // Copy rates specific state
-  const [sourceRoomType, setSourceRoomType] = useState<string>(roomTypes[0]?.id || '');
-  const [targetRoomTypes, setTargetRoomTypes] = useState<string[]>([]);
-  const [copyDateRange, setCopyDateRange] = useState<DateRange | undefined>(dateRange);
-  
-  // Toggle room type selection for updates
-  const handleRoomTypeToggle = (roomTypeId: string) => {
-    setUpdateRoomTypes(prev => {
-      if (prev.includes(roomTypeId)) {
-        return prev.filter(id => id !== roomTypeId);
-      } else {
-        return [...prev, roomTypeId];
-      }
-    });
-  };
-  
-  // Toggle target room type selection for copy
-  const handleTargetRoomTypeToggle = (roomTypeId: string) => {
-    setTargetRoomTypes(prev => {
-      if (prev.includes(roomTypeId)) {
-        return prev.filter(id => id !== roomTypeId);
-      } else {
-        return [...prev, roomTypeId];
-      }
-    });
-  };
-  
-  // Handle bulk update submission
-  const handleBulkUpdate = async () => {
-    if (!localDateRange?.from || !localDateRange?.to) {
+  const { bulkUpdateRates } = useRates();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<BulkUpdateFormValues>({
+    resolver: zodResolver(bulkUpdateSchema),
+    defaultValues: {
+      adjustmentType: 'percentage',
+      amount: 0,
+      roomTypeIds: selectedRoomTypes.length > 0 ? selectedRoomTypes : [],
+    },
+  });
+
+  const adjustmentType = form.watch('adjustmentType');
+
+  const onSubmit = async (values: BulkUpdateFormValues) => {
+    if (!dateRange?.from || !dateRange?.to) {
       toast({
-        title: "Missing date range",
-        description: "Please select a date range for the bulk update.",
-        variant: "destructive"
+        title: 'Missing date range',
+        description: 'Please select a date range for this bulk update',
+        variant: 'destructive',
       });
       return;
     }
-    
-    if (updateRoomTypes.length === 0) {
-      toast({
-        title: "No room types selected",
-        description: "Please select at least one room type to update.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const amount = parseFloat(updateAmount);
-    
-    if (isNaN(amount)) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid number for the update amount.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
+
+    setIsSubmitting(true);
     try {
+      const isPercentage = values.adjustmentType === 'percentage';
+      const dateRangeObj = {
+        start: dateRange.from,
+        end: dateRange.to,
+      };
+
       const updatedCount = await bulkUpdateRates(
-        updateRoomTypes,
-        { start: localDateRange.from, end: localDateRange.to },
-        amount,
+        values.roomTypeIds,
+        dateRangeObj,
+        values.amount,
         isPercentage
       );
-      
+
       toast({
-        title: "Bulk update successful",
-        description: `Updated rates for ${updatedCount} rules.`,
+        title: 'Bulk update successful',
+        description: `Updated ${updatedCount} rates across ${values.roomTypeIds.length} room types.`,
       });
       
       onComplete();
     } catch (error) {
       console.error('Error performing bulk update:', error);
       toast({
-        title: "Error updating rates",
-        description: "An error occurred during the bulk update operation.",
-        variant: "destructive"
+        title: 'Update failed',
+        description: 'An error occurred while updating rates',
+        variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
-  // Handle copy rates submission
-  const handleCopyRates = async () => {
-    if (!copyDateRange?.from || !copyDateRange?.to) {
-      toast({
-        title: "Missing date range",
-        description: "Please select a date range for copying rates.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!sourceRoomType) {
-      toast({
-        title: "No source room type",
-        description: "Please select a source room type to copy rates from.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (targetRoomTypes.length === 0) {
-      toast({
-        title: "No target room types",
-        description: "Please select at least one target room type to copy rates to.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    try {
-      const copiedCount = await copyRates(
-        sourceRoomType,
-        targetRoomTypes,
-        { start: copyDateRange.from, end: copyDateRange.to }
-      );
-      
-      toast({
-        title: "Copy operation successful",
-        description: `Copied ${copiedCount} rate rules to ${targetRoomTypes.length} room types.`,
-      });
-      
-      onComplete();
-    } catch (error) {
-      console.error('Error copying rates:', error);
-      toast({
-        title: "Error copying rates",
-        description: "An error occurred during the copy operation.",
-        variant: "destructive"
-      });
-    }
-  };
-  
+
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="update">Bulk Update</TabsTrigger>
-          <TabsTrigger value="copy">Copy Rates</TabsTrigger>
-        </TabsList>
-        
-        {/* Bulk Update Tab */}
-        <TabsContent value="update" className="space-y-4">
-          <div className="space-y-2">
-            <Label>Update Method</Label>
-            <RadioGroup 
-              defaultValue={isPercentage ? "percentage" : "fixed"} 
-              onValueChange={(v) => setIsPercentage(v === "percentage")}
-              className="flex flex-col space-y-1"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="percentage" id="percentage" />
-                <Label htmlFor="percentage">Percentage adjustment</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="fixed" id="fixed" />
-                <Label htmlFor="fixed">Fixed amount adjustment</Label>
-              </div>
-            </RadioGroup>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="amount">Amount</Label>
-            <div className="flex items-center">
-              {isPercentage && <span className="mr-2">%</span>}
-              {!isPercentage && <span className="mr-2">$</span>}
-              <Input 
-                id="amount"
-                type="number" 
-                value={updateAmount}
-                onChange={(e) => setUpdateAmount(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {isPercentage 
-                ? 'Use negative values (e.g., -10) to decrease rates' 
-                : 'Use negative values (e.g., -5.50) to decrease rates'}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Date Range Summary */}
+        <div className="p-4 bg-muted rounded-md">
+          <h3 className="font-medium mb-2">Applying to date range:</h3>
+          {dateRange?.from && dateRange?.to ? (
+            <p>
+              {format(dateRange.from, 'PPP')} to {format(dateRange.to, 'PPP')}
             </p>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Room Types</Label>
-            <div className="border rounded-md p-4 max-h-[150px] overflow-y-auto grid grid-cols-2 gap-2">
-              {roomTypes.map((roomType) => (
-                <div key={roomType.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`update-${roomType.id}`}
-                    checked={updateRoomTypes.includes(roomType.id)}
-                    onCheckedChange={() => handleRoomTypeToggle(roomType.id)}
+          ) : (
+            <p className="text-destructive">Please select a date range first</p>
+          )}
+        </div>
+
+        {/* Adjustment Type */}
+        <FormField
+          control={form.control}
+          name="adjustmentType"
+          render={({ field }) => (
+            <FormItem className="space-y-1">
+              <FormLabel>Adjustment Type</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex gap-4"
+                >
+                  <FormItem className="flex items-center space-x-2 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="percentage" />
+                    </FormControl>
+                    <FormLabel className="font-normal flex items-center">
+                      <Percent className="h-4 w-4 mr-1" />
+                      Percentage
+                    </FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-2 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="fixed" />
+                    </FormControl>
+                    <FormLabel className="font-normal flex items-center">
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      Fixed Amount
+                    </FormLabel>
+                  </FormItem>
+                </RadioGroup>
+              </FormControl>
+              <FormDescription>
+                Choose whether to adjust by percentage or fixed amount
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Amount */}
+        <FormField
+          control={form.control}
+          name="amount"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Amount</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2">
+                    {adjustmentType === 'percentage' ? '%' : '$'}
+                  </span>
+                  <Input
+                    type="number"
+                    step={adjustmentType === 'percentage' ? '1' : '0.01'}
+                    className="pl-7"
+                    {...field}
                   />
-                  <Label htmlFor={`update-${roomType.id}`} className="cursor-pointer">
-                    {roomType.name}
-                  </Label>
                 </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Date Range</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !localDateRange && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {localDateRange?.from ? (
-                    localDateRange.to ? (
-                      <>
-                        {format(localDateRange.from, "LLL dd, y")} -{" "}
-                        {format(localDateRange.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(localDateRange.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={localDateRange?.from}
-                  selected={localDateRange}
-                  onSelect={setLocalDateRange}
-                  numberOfMonths={2}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button onClick={handleBulkUpdate}>
-              Update Rates
-            </Button>
-          </div>
-        </TabsContent>
-        
-        {/* Copy Rates Tab */}
-        <TabsContent value="copy" className="space-y-4">
-          <div className="space-y-2">
-            <Label>Source Room Type</Label>
-            <div className="border rounded-md p-4 max-h-[100px] overflow-y-auto">
-              {roomTypes.map((roomType) => (
-                <div key={roomType.id} className="flex items-center space-x-2 py-1">
-                  <RadioGroup 
-                    value={sourceRoomType} 
-                    onValueChange={setSourceRoomType}
-                    className="flex"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value={roomType.id} id={`source-${roomType.id}`} />
-                      <Label htmlFor={`source-${roomType.id}`} className="cursor-pointer">
-                        {roomType.name}
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Target Room Types</Label>
-            <div className="border rounded-md p-4 max-h-[150px] overflow-y-auto grid grid-cols-2 gap-2">
-              {roomTypes
-                .filter(rt => rt.id !== sourceRoomType)
-                .map((roomType) => (
-                  <div key={roomType.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`target-${roomType.id}`}
-                      checked={targetRoomTypes.includes(roomType.id)}
-                      onCheckedChange={() => handleTargetRoomTypeToggle(roomType.id)}
-                    />
-                    <Label htmlFor={`target-${roomType.id}`} className="cursor-pointer">
-                      {roomType.name}
-                    </Label>
-                  </div>
+              </FormControl>
+              <FormDescription>
+                {adjustmentType === 'percentage' ? (
+                  <>
+                    Enter a positive value to increase rates (e.g., 10 for +10%)<br />
+                    Enter a negative value to decrease rates (e.g., -10 for -10%)
+                  </>
+                ) : (
+                  <>
+                    Enter a positive value to increase rates (e.g., 20 for +$20)<br />
+                    Enter a negative value to decrease rates (e.g., -20 for -$20)
+                  </>
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Room Types */}
+        <FormField
+          control={form.control}
+          name="roomTypeIds"
+          render={() => (
+            <FormItem>
+              <div className="mb-4">
+                <FormLabel className="text-base">Select Room Types</FormLabel>
+                <FormDescription>
+                  Choose which room types to apply the rate changes to
+                </FormDescription>
+              </div>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto p-1">
+                {roomTypes.map((roomType) => (
+                  <FormField
+                    key={roomType.id}
+                    control={form.control}
+                    name="roomTypeIds"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={roomType.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(roomType.id)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([...field.value, roomType.id])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== roomType.id
+                                      )
+                                    );
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            {roomType.name} (Base: ${roomType.baseRate})
+                          </FormLabel>
+                        </FormItem>
+                      );
+                    }}
+                  />
                 ))}
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Date Range</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !copyDateRange && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {copyDateRange?.from ? (
-                    copyDateRange.to ? (
-                      <>
-                        {format(copyDateRange.from, "LLL dd, y")} -{" "}
-                        {format(copyDateRange.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(copyDateRange.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={copyDateRange?.from}
-                  selected={copyDateRange}
-                  onSelect={setCopyDateRange}
-                  numberOfMonths={2}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button onClick={handleCopyRates}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copy Rates
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !dateRange?.from || !dateRange?.to}
+          >
+            {isSubmitting ? 'Updating...' : 'Apply Changes'}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 };
 

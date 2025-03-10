@@ -1,16 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { format, isEqual } from 'date-fns';
+import { format, eachDayOfInterval, isEqual, addDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { useRates, RoomType, Channel } from '@/contexts/RateContext';
+import { RoomType, Channel, useRates } from '@/contexts/RateContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RefreshCw, Edit, AlertTriangle, CheckCircle } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertTriangle, Edit, Percent, Check } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 interface ChannelRatesTableProps {
   roomTypes: RoomType[];
@@ -23,325 +26,395 @@ const ChannelRatesTable: React.FC<ChannelRatesTableProps> = ({
   channels,
   dateRange,
 }) => {
-  const { channelRateMappings, updateChannelRateMapping, previewRate } = useRates();
-  const { toast } = useToast();
-  
+  const { previewRate, updateChannelRateMapping, channelRateMappings } = useRates();
   const [selectedRoomType, setSelectedRoomType] = useState<string>(roomTypes[0]?.id || '');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [ratePreviews, setRatePreviews] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [editingChannel, setEditingChannel] = useState<string | null>(null);
-  const [editMarkupValue, setEditMarkupValue] = useState<string>('');
-  const [markupIsPercentage, setMarkupIsPercentage] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(dateRange?.from || new Date());
+  const [isLoading, setIsLoading] = useState(false);
+  const [rateData, setRateData] = useState<Record<string, { finalAmount: number; baseAmount: number; parity: boolean }>>({});
+  const [editMode, setEditMode] = useState<{ channelId: string; markup: number; isPercentage: boolean } | null>(null);
   
-  // Load rate previews for all channels
+  // Load rate data for selected room type and date
   useEffect(() => {
-    const loadChannelRates = async () => {
-      if (!selectedRoomType) return;
+    const loadRateData = async () => {
+      if (!selectedRoomType || !selectedDate) return;
       
-      setLoading(true);
-      const previews: Record<string, number> = {};
+      setIsLoading(true);
       
-      for (const channel of channels) {
-        try {
-          const result = await previewRate(selectedRoomType, selectedDate, channel.id);
-          previews[channel.id] = result.finalAmount;
-        } catch (error) {
-          console.error(`Error loading preview for ${channel.id}:`, error);
-          previews[channel.id] = 0;
+      try {
+        const data: Record<string, { finalAmount: number; baseAmount: number; parity: boolean }> = {};
+        
+        // Get direct channel rate as baseline
+        const directRate = await previewRate(selectedRoomType, selectedDate, '1');
+        data['1'] = { ...directRate, parity: true };
+        
+        // Get rates for other channels
+        for (const channel of channels) {
+          if (channel.id === '1') continue; // Skip direct channel
+          
+          const channelRate = await previewRate(selectedRoomType, selectedDate, channel.id);
+          
+          // Check rate parity
+          const parity = Math.abs(channelRate.finalAmount - directRate.finalAmount) < 0.01;
+          
+          data[channel.id] = {
+            ...channelRate,
+            parity,
+          };
         }
+        
+        setRateData(data);
+      } catch (error) {
+        console.error('Error loading channel rates:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load channel rates',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
       }
-      
-      setRatePreviews(previews);
-      setLoading(false);
     };
     
-    loadChannelRates();
+    loadRateData();
   }, [selectedRoomType, selectedDate, channels, previewRate]);
   
-  // Set selected date when date range changes
-  useEffect(() => {
-    if (dateRange?.from) {
-      setSelectedDate(dateRange.from);
-    }
-  }, [dateRange]);
-  
-  // Handle room type selection
-  const handleRoomTypeChange = (roomTypeId: string) => {
-    setSelectedRoomType(roomTypeId);
+  // Handle room type change
+  const handleRoomTypeChange = (value: string) => {
+    setSelectedRoomType(value);
   };
   
-  // Handle date selection
-  const handleDateChange = (date: Date) => {
-    setSelectedDate(date);
+  // Handle date change
+  const handleDateChange = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+    }
   };
   
   // Start editing a channel markup
-  const startEditing = (channelId: string) => {
-    const mapping = channelRateMappings.find(m => 
-      m.channelId === channelId && 
-      m.rateRuleId === `base-${selectedRoomType}`
+  const handleStartEdit = (channelId: string) => {
+    const mapping = channelRateMappings.find(
+      m => m.channelId === channelId && 
+      m.rateRuleId.includes(selectedRoomType)
     );
     
-    setEditingChannel(channelId);
-    setEditMarkupValue(mapping ? mapping.markup.toString() : '0');
-    setMarkupIsPercentage(mapping ? mapping.isMarkupPercentage : true);
+    setEditMode({
+      channelId,
+      markup: mapping?.markup || 0,
+      isPercentage: mapping?.isMarkupPercentage !== false,
+    });
   };
   
-  // Save channel markup changes
-  const saveChannelMarkup = async (channelId: string) => {
+  // Save channel markup
+  const handleSaveMarkup = async () => {
+    if (!editMode) return;
+    
     try {
-      const markupValue = parseFloat(editMarkupValue);
+      const { channelId, markup, isPercentage } = editMode;
       
-      if (isNaN(markupValue)) {
-        toast({
-          title: "Invalid markup value",
-          description: "Please enter a valid number for the markup.",
-          variant: "destructive"
-        });
-        return;
-      }
+      // Find existing mapping or create new mapping ID
+      const existingMapping = channelRateMappings.find(
+        m => m.channelId === channelId && 
+        m.rateRuleId.includes(selectedRoomType)
+      );
       
-      // Find existing mapping
-      const mappingId = channelRateMappings.find(m => 
-        m.channelId === channelId && 
-        m.rateRuleId === `base-${selectedRoomType}`
-      )?.id;
+      const mappingId = existingMapping?.id || `${selectedRoomType}-${channelId}-${Date.now()}`;
       
-      if (mappingId) {
-        // Update existing mapping
-        await updateChannelRateMapping(mappingId, {
-          markup: markupValue,
-          isMarkupPercentage: markupIsPercentage,
-        });
-      } else {
-        // Create new mapping
-        const channel = channels.find(c => c.id === channelId);
-        
-        if (!channel) {
-          throw new Error(`Channel with ID ${channelId} not found`);
-        }
-        
-        const newMapping = {
-          id: `mapping-${Date.now()}`,
-          channelId,
-          channelName: channel.name,
-          rateRuleId: `base-${selectedRoomType}`,
-          markup: markupValue,
-          isMarkupPercentage: markupIsPercentage,
-          isEnabled: true,
-          lastSynced: new Date(),
-        };
-        
-        // In a real app, we'd create the mapping here
-        console.log('New mapping would be created:', newMapping);
-      }
+      await updateChannelRateMapping(mappingId, {
+        channelId,
+        channelName: channels.find(c => c.id === channelId)?.name || 'Unknown',
+        rateRuleId: selectedRoomType,
+        markup,
+        isMarkupPercentage: isPercentage,
+        isEnabled: true,
+        lastSynced: new Date(),
+      });
       
-      // Refresh rate previews
-      const result = await previewRate(selectedRoomType, selectedDate, channelId);
-      setRatePreviews(prev => ({
-        ...prev,
-        [channelId]: result.finalAmount,
-      }));
+      // Reset edit mode
+      setEditMode(null);
       
-      // Reset editing state
-      setEditingChannel(null);
+      // Reload rates
+      const updatedData = { ...rateData };
+      const directRate = updatedData['1'];
+      
+      // Update the rate for this channel
+      const channelRate = await previewRate(selectedRoomType, selectedDate as Date, channelId);
+      const parity = Math.abs(channelRate.finalAmount - directRate.finalAmount) < 0.01;
+      
+      updatedData[channelId] = {
+        ...channelRate,
+        parity,
+      };
+      
+      setRateData(updatedData);
       
       toast({
-        title: "Channel rate updated",
-        description: "The markup has been successfully updated."
+        title: 'Markup updated',
+        description: 'Channel rates have been updated successfully',
       });
     } catch (error) {
-      console.error('Error saving channel markup:', error);
+      console.error('Error updating channel markup:', error);
       toast({
-        title: "Error updating rate",
-        description: "An error occurred while updating the channel rate.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update channel markup',
+        variant: 'destructive',
       });
     }
   };
   
   // Cancel editing
-  const cancelEditing = () => {
-    setEditingChannel(null);
+  const handleCancelEdit = () => {
+    setEditMode(null);
   };
   
-  // Check rate parity issues
-  const hasParityIssues = () => {
-    if (Object.keys(ratePreviews).length < 2) return false;
-    
-    const rates = Object.values(ratePreviews);
-    const minRate = Math.min(...rates);
-    const maxRate = Math.max(...rates);
-    
-    return maxRate > minRate * 1.02; // More than 2% variation
-  };
-  
-  // Get the room type
-  const selectedRoomTypeObj = roomTypes.find(rt => rt.id === selectedRoomType);
+  // Room type object
+  const roomType = roomTypes.find(rt => rt.id === selectedRoomType);
   
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4 md:items-end">
-        <div className="flex-1 space-y-2">
-          <Label>Room Type</Label>
-          <div className="flex flex-wrap gap-2">
-            {roomTypes.map(roomType => (
-              <Button
-                key={roomType.id}
-                variant={selectedRoomType === roomType.id ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => handleRoomTypeChange(roomType.id)}
-              >
-                {roomType.name}
-              </Button>
-            ))}
-          </div>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="room-type">Room Type</Label>
+          <Select
+            value={selectedRoomType}
+            onValueChange={handleRoomTypeChange}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a room type" />
+            </SelectTrigger>
+            <SelectContent>
+              {roomTypes.map(rt => (
+                <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         
-        <div className="flex-1 space-y-2">
-          <Label>Date</Label>
-          <div className="flex flex-wrap gap-2">
-            {dateRange?.from && dateRange?.to && (
-              Array.from({ length: Math.min(7, Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (24 * 60 * 60 * 1000))) }, (_, i) => {
-                const date = new Date(dateRange.from);
-                date.setDate(date.getDate() + i);
-                return (
-                  <Button
-                    key={i}
-                    variant={isEqual(selectedDate, date) ? 'default' : 'outline'}
+        <div>
+          <Label htmlFor="date">Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal"
+                id="date"
+              >
+                {selectedDate ? (
+                  format(selectedDate, 'PPP')
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="p-3">
+                <div className="space-y-2">
+                  <h4 className="font-medium">Navigate to date</h4>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDateChange(new Date())}
+                    >
+                      Today
+                    </Button>
+                    {dateRange?.from && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDateChange(dateRange.from)}
+                      >
+                        Start Date
+                      </Button>
+                    )}
+                    {dateRange?.to && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleDateChange(dateRange.to)}
+                      >
+                        End Date
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Button 
+                    variant="outline" 
                     size="sm"
-                    onClick={() => handleDateChange(date)}
+                    onClick={() => selectedDate && handleDateChange(addDays(selectedDate, -1))}
+                    className="mr-1"
                   >
-                    {format(date, 'MMM d')}
+                    Prev
                   </Button>
-                );
-              })
-            )}
-          </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => selectedDate && handleDateChange(addDays(selectedDate, 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       
-      {hasParityIssues() && (
-        <div className="flex items-center gap-2 p-3 border border-yellow-200 bg-yellow-50 rounded-md text-yellow-800">
-          <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-          <div className="text-sm">
-            <strong>Rate parity issue detected:</strong> There is a significant difference in rates between channels.
-            This may violate rate parity agreements with some OTAs.
-          </div>
-        </div>
-      )}
-      
-      <div className="border rounded-md overflow-hidden">
+      <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Channel</TableHead>
-              <TableHead>Commission</TableHead>
+              <TableHead>Base Rate</TableHead>
               <TableHead>Markup</TableHead>
               <TableHead>Final Rate</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Parity</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {channels.map(channel => {
-              // Check if a mapping exists for this channel + room type combo
-              const mapping = channelRateMappings.find(m => 
-                m.channelId === channel.id && 
-                m.rateRuleId === `base-${selectedRoomType}`
-              );
-              
-              const isEditing = editingChannel === channel.id;
-              
-              return (
-                <TableRow key={channel.id}>
-                  <TableCell className="font-medium">{channel.name}</TableCell>
-                  <TableCell>{channel.commission}%</TableCell>
-                  <TableCell>
-                    {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          type="number" 
-                          value={editMarkupValue}
-                          onChange={e => setEditMarkupValue(e.target.value)}
-                          className="w-20"
-                        />
-                        <div className="flex items-center gap-1">
-                          <Switch 
-                            checked={markupIsPercentage}
-                            onCheckedChange={setMarkupIsPercentage}
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <div className="flex justify-center py-4">
+                    <Skeleton className="h-8 w-full max-w-md" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              channels.map(channel => {
+                const data = rateData[channel.id];
+                const isDirectChannel = channel.id === '1';
+                const isEditing = editMode?.channelId === channel.id;
+                
+                // Find the channel mapping for this room and channel
+                const mapping = channelRateMappings.find(
+                  m => m.channelId === channel.id && 
+                  m.rateRuleId.includes(selectedRoomType)
+                );
+                
+                return (
+                  <TableRow key={channel.id}>
+                    <TableCell>
+                      <div className="font-medium">{channel.name}</div>
+                      {!isDirectChannel && (
+                        <div className="text-xs text-muted-foreground">
+                          Commission: {channel.commission}%
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      ${data?.baseAmount.toFixed(2) || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            type="number"
+                            value={editMode.markup}
+                            onChange={e => setEditMode({
+                              ...editMode,
+                              markup: parseFloat(e.target.value) || 0,
+                            })}
+                            className="w-20"
                           />
-                          <span className="text-sm">%</span>
-                        </div>
-                      </div>
-                    ) : (
-                      mapping ? (
-                        <span>
-                          {mapping.markup}{mapping.isMarkupPercentage ? '%' : ' $'}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Default</span>
-                      )
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {loading ? (
-                      <Skeleton className="h-6 w-16" />
-                    ) : (
-                      <span className="font-semibold">
-                        ${ratePreviews[channel.id]?.toFixed(2) || '0.00'}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {mapping ? (
-                      mapping.isEnabled ? (
-                        <div className="flex items-center text-green-600 gap-1">
-                          <CheckCircle className="h-4 w-4" />
-                          <span>Active</span>
+                          <Select
+                            value={editMode.isPercentage ? 'percentage' : 'fixed'}
+                            onValueChange={value => setEditMode({
+                              ...editMode,
+                              isPercentage: value === 'percentage',
+                            })}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="percentage">%</SelectItem>
+                              <SelectItem value="fixed">$</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">Disabled</span>
-                      )
-                    ) : (
-                      <span className="text-muted-foreground">Not configured</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          onClick={() => saveChannelMarkup(channel.id)}
-                        >
-                          Save
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          onClick={cancelEditing}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => startEditing(channel.id)}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                        <>
+                          {isDirectChannel ? (
+                            <span className="text-muted-foreground">N/A</span>
+                          ) : (
+                            mapping ? (
+                              <span>
+                                {mapping.markup}{mapping.isMarkupPercentage ? '%' : '$'}
+                              </span>
+                            ) : (
+                              <span>Default ({channel.commission}%)</span>
+                            )
+                          )}
+                        </>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      ${data?.finalAmount.toFixed(2) || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {isDirectChannel ? (
+                        <Badge variant="outline">Base</Badge>
+                      ) : (
+                        data?.parity ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            <Check className="h-3 w-3 mr-1" /> Parity
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                            <AlertTriangle className="h-3 w-3 mr-1" /> Disparity
+                          </Badge>
+                        )
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <div className="flex space-x-1">
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={handleSaveMarkup}
+                          >
+                            Save
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={handleCancelEdit}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        !isDirectChannel && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => handleStartEdit(channel.id)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
+      </div>
+      
+      <div className="bg-muted rounded-md p-4">
+        <h3 className="text-sm font-medium mb-2">About Channel Rates</h3>
+        <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+          <li>Direct channel is your base rate without markups or commissions</li>
+          <li>Other channels can have custom markups (fixed amount or percentage)</li>
+          <li>Default markup is based on the channel's standard commission rate</li>
+          <li>Rate parity means prices are consistent across channels</li>
+        </ul>
       </div>
     </div>
   );

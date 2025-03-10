@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -105,32 +104,69 @@ const RateCalendarView: React.FC<RateCalendarViewProps> = ({
 
       // Check day of week if applicable
       if (rule.daysOfWeek && rule.daysOfWeek.length > 0) {
-        const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][dateObj.getDay()] as DayOfWeek;
+        const dayIndex = dateObj.getDay();
+        // Convert day index to DayOfWeek type
+        const dayOfWeekMap: Record<number, DayOfWeek> = {
+          0: 'sunday',
+          1: 'monday',
+          2: 'tuesday',
+          3: 'wednesday',
+          4: 'thursday',
+          5: 'friday',
+          6: 'saturday'
+        };
+        const dayOfWeek = dayOfWeekMap[dayIndex];
         if (!rule.daysOfWeek.includes(dayOfWeek)) return false;
       }
 
+      // Check minimum stay if applicable
+      if (rule.minimumStay && lengthOfStay && lengthOfStay < rule.minimumStay) return false;
+      
       return true;
     });
-
+    
     // Find the highest priority rule
-    let ruleToEdit = applicableRules.find(rule => rule.type === 'special') ||
-      applicableRules.find(rule => rule.type === 'seasonal') ||
-      applicableRules.find(rule => rule.type === 'base');
-
-    // If no rule exists, create a new one
+    // Priority: special > seasonal > weekend/weekday > base
+    let ruleToEdit: RateRule | undefined;
+    
+    // First check for special event rates
+    ruleToEdit = applicableRules.find(rule => rule.type === 'special');
+    
+    // Then check for seasonal rates
     if (!ruleToEdit) {
-      ruleToEdit = {
+      ruleToEdit = applicableRules.find(rule => rule.type === 'seasonal');
+    }
+    
+    // Then check for day-specific rates (weekend/weekday)
+    if (!ruleToEdit) {
+      ruleToEdit = applicableRules.find(rule => 
+        rule.type === 'base' && rule.daysOfWeek && rule.daysOfWeek.length > 0
+      );
+    }
+    
+    // Finally fall back to base rate
+    if (!ruleToEdit) {
+      ruleToEdit = applicableRules.find(rule => 
+        rule.type === 'base' && (!rule.daysOfWeek || rule.daysOfWeek.length === 0)
+      );
+    }
+    
+    // Apply the rule
+    if (ruleToEdit) {
+      onEditRate(ruleToEdit);
+    } else {
+      // If no rule exists, create a new one
+      const newRule = {
         name: `Rate for ${roomType.name} on ${format(dateObj, 'MMM d, yyyy')}`,
-        type: 'base',
+        type: 'base' as const,
         roomTypeId,
         amount: roomType.baseRate,
         currency: 'USD',
         startDate: dateObj,
         endDate: dateObj,
-      } as any;
+      };
+      onEditRate(newRule);
     }
-
-    onEditRate(ruleToEdit);
   };
 
   if (loading) {

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -37,7 +36,6 @@ interface RateEditorProps {
   onCancel: () => void;
 }
 
-// Update the schema to match the form structure exactly
 const rateFormSchema = z.object({
   roomTypeId: z.string({
     required_error: 'Please select a room type',
@@ -75,12 +73,11 @@ const RateEditor: React.FC<RateEditorProps> = ({
 }) => {
   const { addRateRule, updateRateRule } = useRates();
   
-  // Fix the default values to match the form schema
   const defaultValues: RateFormValues = rateRule
     ? {
         roomTypeId: rateRule.roomTypeId,
         name: rateRule.name,
-        type: rateRule.type === 'promotion' ? 'special' : rateRule.type, // Handle promotion type
+        type: (rateRule.type === 'promotion' ? 'special' : rateRule.type) as 'base' | 'seasonal' | 'special',
         amount: rateRule.amount,
         currency: rateRule.currency,
         startDate: rateRule.startDate ? new Date(rateRule.startDate) : undefined,
@@ -105,31 +102,25 @@ const RateEditor: React.FC<RateEditorProps> = ({
     defaultValues,
   });
 
-  // Watch form values to show/hide conditional fields
   const rateType = form.watch('type');
   const selectedRoomTypeId = form.watch('roomTypeId');
   
-  // Get selected room type
   const selectedRoomType = roomTypes.find(rt => rt.id === selectedRoomTypeId);
 
   const onSubmit = async (values: RateFormValues) => {
     try {
-      // Prepare data based on rate type
       const rateData: any = {
         ...values,
       };
       
-      // Special handling for seasonal rates
       if (values.type === 'seasonal' && values.seasonName) {
         rateData.seasonName = values.seasonName;
       }
       
-      // Special handling for event rates
       if (values.type === 'special' && values.eventName) {
         rateData.eventName = values.eventName;
       }
       
-      // Handle the update or create
       if (rateRule && 'id' in rateRule) {
         await updateRateRule(rateRule.id, rateData);
       } else {
@@ -240,7 +231,6 @@ const RateEditor: React.FC<RateEditorProps> = ({
           />
         </div>
         
-        {/* Date Range Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -327,7 +317,6 @@ const RateEditor: React.FC<RateEditorProps> = ({
           />
         </div>
         
-        {/* Conditional fields based on rate type */}
         {rateType === 'seasonal' && (
           <FormField
             control={form.control}
@@ -366,7 +355,6 @@ const RateEditor: React.FC<RateEditorProps> = ({
           />
         )}
         
-        {/* Days of Week */}
         <FormField
           control={form.control}
           name="daysOfWeek"
@@ -418,7 +406,6 @@ const RateEditor: React.FC<RateEditorProps> = ({
           )}
         />
         
-        {/* Minimum Stay */}
         <FormField
           control={form.control}
           name="minimumStay"
@@ -436,7 +423,6 @@ const RateEditor: React.FC<RateEditorProps> = ({
           )}
         />
         
-        {/* Notes */}
         <FormField
           control={form.control}
           name="notes"
