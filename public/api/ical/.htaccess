@@ -2,6 +2,7 @@
 # Force content type for .ics files
 <Files "*.ics">
   ForceType text/calendar
+  Header set Content-Type "text/calendar; charset=utf-8"
   Header set Content-Disposition "attachment; filename=calendar.ics"
 </Files>
 

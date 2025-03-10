@@ -429,7 +429,8 @@ export class ICalService {
     try {
       // Create a URL to our dynamic iCal generator
       const baseUrl = this.getBaseUrl();
-      let url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}`;
+      const timestamp = Date.now(); // Add cache-busting parameter
+      let url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}&t=${timestamp}`;
       
       if (roomId) {
         url += `&roomId=${encodeURIComponent(roomId)}`;
