@@ -16,15 +16,10 @@
   Header set Expires "0"
 </Files>
 
-# For when no PHP is available, use a simple text file with .ics extension
-# This makes sure direct .ics file URLs work properly
-<Files "property-*.ics">
-  ForceType text/calendar
-  Header set Content-Type "text/calendar; charset=utf-8"
-  Header set Content-Disposition "attachment; filename=calendar.ics"
-  RewriteEngine On
-  RewriteRule ^property-(.*).ics$ sample.ics [L]
-</Files>
+# Create property-specific iCal feeds with clean URLs
+# This rewrites requests like property-123.ics to the generate.php script
+RewriteEngine On
+RewriteRule ^property-([^/]+)\.ics$ generate.php?propertyId=$1 [L]
 
 # Prevent caching of iCal feeds
 <IfModule mod_headers.c>

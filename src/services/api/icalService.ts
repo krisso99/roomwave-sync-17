@@ -429,23 +429,13 @@ export class ICalService {
     try {
       // Get the base URL for our application
       const baseUrl = this.getBaseUrl();
-      const timestamp = Date.now(); // Add cache-busting parameter
       
-      // For Airbnb compatibility, it's better to use direct .ics files
-      // Most calendar systems prefer .ics extension
+      // For Airbnb compatibility, always use direct .ics file extension
+      // This creates a clean URL that ends with .ics as required by Airbnb
       let url = `${baseUrl}/api/ical/property-${propertyId}.ics`;
       
-      // Only add the cache-busting parameter for PHP dynamic generation
-      // Many calendar systems struggle with query parameters
-      if (!window.location.hostname.includes('localhost') && 
-          !window.location.hostname.includes('127.0.0.1')) {
-        // For production environments, use the PHP generator for dynamic content
-        url = `${baseUrl}/api/ical/generate.php?propertyId=${encodeURIComponent(propertyId)}`;
-        
-        if (roomId) {
-          url += `&roomId=${encodeURIComponent(roomId)}`;
-        }
-      }
+      // Our .htaccess rewrite rule will handle directing this to the PHP script
+      // No query parameters in the URL for better compatibility
       
       return url;
     } catch (error) {
