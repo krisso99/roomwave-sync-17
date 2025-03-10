@@ -35,7 +35,6 @@ $icalContent .= "VERSION:2.0\r\n";
 $icalContent .= "PRODID:-//RiadSync//NONSGML Calendar//EN\r\n";
 $icalContent .= "CALSCALE:GREGORIAN\r\n";
 $icalContent .= "METHOD:PUBLISH\r\n";
-$icalContent .= "\r\n";
 
 // First event
 $icalContent .= "BEGIN:VEVENT\r\n";
@@ -46,7 +45,6 @@ $icalContent .= "DTEND:" . formatICalDate($booking1End) . "\r\n";
 $icalContent .= "SUMMARY:" . ($roomId ? "Room {$roomId}" : "Property") . " Booking\r\n";
 $icalContent .= "STATUS:CONFIRMED\r\n";
 $icalContent .= "END:VEVENT\r\n";
-$icalContent .= "\r\n";
 
 // Second event
 $icalContent .= "BEGIN:VEVENT\r\n";
@@ -57,7 +55,6 @@ $icalContent .= "DTEND:" . formatICalDate($booking2End) . "\r\n";
 $icalContent .= "SUMMARY:" . ($roomId ? "Room {$roomId}" : "Property") . " Booking\r\n";
 $icalContent .= "STATUS:CONFIRMED\r\n";
 $icalContent .= "END:VEVENT\r\n";
-$icalContent .= "\r\n";
 
 $icalContent .= "END:VCALENDAR";
 
