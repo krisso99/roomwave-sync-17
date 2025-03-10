@@ -104,7 +104,7 @@ const MainLayout = () => {
                   {menuItems.map((item) => (
                     <SidebarMenuItem key={item.path}>
                       <SidebarMenuButton 
-                        active={location.pathname === item.path}
+                        isActive={location.pathname === item.path}
                         onClick={() => handleNavigation(item.path)}
                       >
                         <item.icon className="h-4 w-4" />
