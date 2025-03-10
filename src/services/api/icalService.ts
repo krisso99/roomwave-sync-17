@@ -1,6 +1,8 @@
+
 import { toast } from "@/components/ui/use-toast";
 import HttpClient from "./httpClient";
 import { format, addDays, parseISO } from "date-fns";
+import { supabase } from '@/integrations/supabase/client';
 
 // Types for iCal feed configuration
 export interface ICalFeed {
@@ -59,70 +61,6 @@ export interface ICalExportOptions {
   periodEnd?: Date;
 }
 
-// In-memory storage for demo purposes
-// In a real app, this would be persisted in a database
-let icalFeeds: ICalFeed[] = [
-  {
-    id: "1",
-    name: "Airbnb Calendar",
-    url: "https://www.airbnb.com/calendar/ical/12345.ics",
-    propertyId: "property-1",
-    lastSync: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-    autoSync: true,
-    syncInterval: 60, // every hour
-    status: 'active',
-    direction: 'import',
-    priority: 2,
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
-  },
-  {
-    id: "2",
-    name: "Booking.com Calendar",
-    url: "https://admin.booking.com/hotel/ical/12345.ics",
-    propertyId: "property-1",
-    lastSync: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    autoSync: true,
-    syncInterval: 120, // every 2 hours
-    status: 'active',
-    direction: 'import',
-    priority: 3,
-    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
-  },
-  {
-    id: "3",
-    name: "Vrbo Calendar",
-    url: "https://www.vrbo.com/calendar/ical/12345.ics",
-    propertyId: "property-1",
-    lastSync: null, // never synced
-    autoSync: false,
-    syncInterval: 360, // every 6 hours
-    status: 'pending',
-    direction: 'import',
-    priority: 1,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
-  },
-  {
-    id: "4",
-    name: "Property Export Feed",
-    url: "https://app.ourplatform.com/ical/export/property1.ics",
-    propertyId: "property-1",
-    lastSync: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
-    autoSync: true,
-    syncInterval: 720, // every 12 hours
-    status: 'active',
-    direction: 'export',
-    priority: 4,
-    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000)
-  }
-];
-
-// Simulated events for the demo
-let icalEvents: ICalEvent[] = [];
-
 // Class to handle iCal feed operations
 export class ICalService {
   private httpClient: HttpClient;
@@ -131,60 +69,206 @@ export class ICalService {
     this.httpClient = new HttpClient('');
   }
 
-  // Get all iCal feeds
+  // Get all iCal feeds from Supabase
   async getFeeds(propertyId?: string): Promise<ICalFeed[]> {
-    // In a real app, this would fetch from a database
-    if (propertyId) {
-      return icalFeeds.filter(feed => feed.propertyId === propertyId);
+    try {
+      let query = supabase.from('ical_feeds').select('*');
+      
+      if (propertyId) {
+        query = query.eq('property_id', propertyId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Convert the Supabase data to ICalFeed objects
+      const feeds: ICalFeed[] = data.map(feed => ({
+        id: feed.id,
+        name: feed.name,
+        url: feed.url,
+        propertyId: feed.property_id,
+        roomId: feed.room_id || undefined,
+        lastSync: feed.last_sync ? new Date(feed.last_sync) : null,
+        autoSync: feed.auto_sync,
+        syncInterval: feed.sync_interval,
+        status: feed.status as 'active' | 'error' | 'pending',
+        error: feed.error,
+        direction: feed.direction as 'import' | 'export' | 'both',
+        priority: feed.priority,
+        createdAt: new Date(feed.created_at),
+        updatedAt: new Date(feed.updated_at)
+      }));
+      
+      return feeds;
+    } catch (error) {
+      console.error("Error fetching iCal feeds:", error);
+      throw error;
     }
-    return [...icalFeeds];
   }
 
-  // Get a single iCal feed by ID
+  // Get a single iCal feed by ID from Supabase
   async getFeed(id: string): Promise<ICalFeed | null> {
-    // In a real app, this would fetch from a database
-    const feed = icalFeeds.find(feed => feed.id === id);
-    return feed ? { ...feed } : null;
+    try {
+      const { data, error } = await supabase
+        .from('ical_feeds')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        return null;
+      }
+      
+      // Convert the Supabase data to an ICalFeed object
+      const feed: ICalFeed = {
+        id: data.id,
+        name: data.name,
+        url: data.url,
+        propertyId: data.property_id,
+        roomId: data.room_id || undefined,
+        lastSync: data.last_sync ? new Date(data.last_sync) : null,
+        autoSync: data.auto_sync,
+        syncInterval: data.sync_interval,
+        status: data.status as 'active' | 'error' | 'pending',
+        error: data.error,
+        direction: data.direction as 'import' | 'export' | 'both',
+        priority: data.priority,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at)
+      };
+      
+      return feed;
+    } catch (error) {
+      console.error("Error fetching iCal feed:", error);
+      return null;
+    }
   }
 
-  // Create a new iCal feed
+  // Create a new iCal feed in Supabase
   async createFeed(feed: Omit<ICalFeed, 'id' | 'createdAt' | 'updatedAt' | 'lastSync' | 'status'>): Promise<ICalFeed> {
-    // In a real app, this would save to a database
-    const newFeed: ICalFeed = {
-      ...feed,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastSync: null,
-      status: 'pending'
-    };
-
-    icalFeeds.push(newFeed);
-    return { ...newFeed };
+    try {
+      const { data, error } = await supabase.from('ical_feeds').insert({
+        name: feed.name,
+        url: feed.url,
+        property_id: feed.propertyId,
+        room_id: feed.roomId,
+        auto_sync: feed.autoSync,
+        sync_interval: feed.syncInterval,
+        direction: feed.direction,
+        priority: feed.priority
+      }).select().single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Convert the Supabase data to an ICalFeed object
+      const newFeed: ICalFeed = {
+        id: data.id,
+        name: data.name,
+        url: data.url,
+        propertyId: data.property_id,
+        roomId: data.room_id || undefined,
+        lastSync: data.last_sync ? new Date(data.last_sync) : null,
+        autoSync: data.auto_sync,
+        syncInterval: data.sync_interval,
+        status: data.status as 'active' | 'error' | 'pending',
+        error: data.error,
+        direction: data.direction as 'import' | 'export' | 'both',
+        priority: data.priority,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at)
+      };
+      
+      return newFeed;
+    } catch (error) {
+      console.error("Error creating iCal feed:", error);
+      throw error;
+    }
   }
 
-  // Update an existing iCal feed
+  // Update an existing iCal feed in Supabase
   async updateFeed(id: string, updates: Partial<Omit<ICalFeed, 'id' | 'createdAt'>>): Promise<ICalFeed | null> {
-    // In a real app, this would update in a database
-    const index = icalFeeds.findIndex(feed => feed.id === id);
-    if (index === -1) return null;
-
-    const updatedFeed = {
-      ...icalFeeds[index],
-      ...updates,
-      updatedAt: new Date()
-    };
-
-    icalFeeds[index] = updatedFeed;
-    return { ...updatedFeed };
+    try {
+      // Convert the ICalFeed updates to the Supabase column names
+      const supabaseUpdates: any = {};
+      
+      if (updates.name) supabaseUpdates.name = updates.name;
+      if (updates.url) supabaseUpdates.url = updates.url;
+      if (updates.propertyId) supabaseUpdates.property_id = updates.propertyId;
+      if (updates.roomId !== undefined) supabaseUpdates.room_id = updates.roomId;
+      if (updates.lastSync !== undefined) supabaseUpdates.last_sync = updates.lastSync;
+      if (updates.autoSync !== undefined) supabaseUpdates.auto_sync = updates.autoSync;
+      if (updates.syncInterval !== undefined) supabaseUpdates.sync_interval = updates.syncInterval;
+      if (updates.status) supabaseUpdates.status = updates.status;
+      if (updates.error !== undefined) supabaseUpdates.error = updates.error;
+      if (updates.direction) supabaseUpdates.direction = updates.direction;
+      if (updates.priority !== undefined) supabaseUpdates.priority = updates.priority;
+      
+      const { data, error } = await supabase
+        .from('ical_feeds')
+        .update(supabaseUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        return null;
+      }
+      
+      // Convert the Supabase data to an ICalFeed object
+      const updatedFeed: ICalFeed = {
+        id: data.id,
+        name: data.name,
+        url: data.url,
+        propertyId: data.property_id,
+        roomId: data.room_id || undefined,
+        lastSync: data.last_sync ? new Date(data.last_sync) : null,
+        autoSync: data.auto_sync,
+        syncInterval: data.sync_interval,
+        status: data.status as 'active' | 'error' | 'pending',
+        error: data.error,
+        direction: data.direction as 'import' | 'export' | 'both',
+        priority: data.priority,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at)
+      };
+      
+      return updatedFeed;
+    } catch (error) {
+      console.error("Error updating iCal feed:", error);
+      return null;
+    }
   }
 
-  // Delete an iCal feed
+  // Delete an iCal feed from Supabase
   async deleteFeed(id: string): Promise<boolean> {
-    // In a real app, this would delete from a database
-    const initialLength = icalFeeds.length;
-    icalFeeds = icalFeeds.filter(feed => feed.id !== id);
-    return initialLength !== icalFeeds.length;
+    try {
+      const { error } = await supabase
+        .from('ical_feeds')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error deleting iCal feed:", error);
+      return false;
+    }
   }
 
   // Import iCal data from a URL
@@ -322,15 +406,39 @@ export class ICalService {
   
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
-    // Get the base URL, defaulting to the current origin
-    const baseUrl = window.location.origin;
+    // Get the base URL, defaulting to the current origin if available
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : 'https://app.riadsync.com';
+      
+    // Format the path for the iCal file - use a valid .ics file path
     const path = roomId 
       ? `/api/ical/export/property/${propertyId}/room/${roomId}.ics` 
       : `/api/ical/export/property/${propertyId}.ics`;
     
-    // Add a token for security (in a real app this would be a valid token)
-    const secureToken = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    // Generate a secure token (in a real app, this would be a JWT or similar)
+    const secureToken = this.generateSecureToken(propertyId, roomId);
+    
+    // Return the full URL with the token as a query parameter
     return `${baseUrl}${path}?token=${secureToken}`;
+  }
+  
+  // Generate a secure token for the export URL
+  private generateSecureToken(propertyId: string, roomId?: string): string {
+    // In a real app, this would generate a proper secure token
+    // For demo purposes, we'll create a simple hash-like string
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 10);
+    const data = `${propertyId}${roomId || ''}${timestamp}`;
+    
+    // Simple "hash" by summing character codes and adding the timestamp
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+      hash = ((hash << 5) - hash) + data.charCodeAt(i);
+      hash |= 0; // Convert to 32bit integer
+    }
+    
+    return `${Math.abs(hash).toString(16)}${random}${timestamp.toString(36)}`;
   }
   
   // Format a date for iCal format

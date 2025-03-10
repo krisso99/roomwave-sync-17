@@ -19,8 +19,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-
-const CONFIG_STORAGE_KEY = 'riadsync-configuration';
+import { supabase } from '@/integrations/supabase/client';
 
 const configSchema = z.object({
   siteName: z.string().min(2, {
@@ -54,41 +53,74 @@ const defaultValues: Partial<ConfigFormValues> = {
 
 const ConfigPanel = () => {
   const { toast } = useToast();
-  
-  // Load saved configuration or use defaults
-  const loadSavedConfig = (): Partial<ConfigFormValues> => {
-    try {
-      const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
-      if (savedConfig) {
-        const parsedConfig = JSON.parse(savedConfig);
-        return { ...defaultValues, ...parsedConfig };
-      }
-    } catch (error) {
-      console.error('Error parsing saved configuration:', error);
-    }
-    return defaultValues;
-  };
+  const [isLoading, setIsLoading] = useState(true);
   
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configSchema),
-    defaultValues: loadSavedConfig(),
+    defaultValues,
   });
 
-  // Initialize form with saved values when component mounts
+  // Load saved configuration from Supabase when component mounts
   useEffect(() => {
-    const savedValues = loadSavedConfig();
-    Object.keys(savedValues).forEach(key => {
-      form.setValue(key as keyof ConfigFormValues, 
-        savedValues[key as keyof ConfigFormValues] as any);
-    });
-  }, []);
+    const loadConfig = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('system_configuration')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error) {
+          console.error('Error loading configuration:', error);
+          return;
+        }
+        
+        if (data) {
+          // Map from snake_case DB columns to camelCase form fields
+          form.reset({
+            siteName: data.site_name,
+            siteUrl: data.site_url,
+            emailFrom: data.email_from,
+            enableBookingNotifications: data.enable_booking_notifications,
+            enableGuestPortal: data.enable_guest_portal,
+            maintenanceMode: data.maintenance_mode,
+            bookingLeadTime: data.booking_lead_time,
+            maxBookingWindow: data.max_booking_window,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading configuration:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadConfig();
+  }, [form]);
 
-  const onSubmit = (data: ConfigFormValues) => {
+  const onSubmit = async (data: ConfigFormValues) => {
     try {
-      // Save configuration to localStorage
-      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(data));
+      // Save configuration to Supabase
+      const { error } = await supabase
+        .from('system_configuration')
+        .update({
+          site_name: data.siteName,
+          site_url: data.siteUrl,
+          email_from: data.emailFrom,
+          enable_booking_notifications: data.enableBookingNotifications,
+          enable_guest_portal: data.enableGuestPortal,
+          maintenance_mode: data.maintenanceMode,
+          booking_lead_time: data.bookingLeadTime,
+          max_booking_window: data.maxBookingWindow,
+        })
+        .eq('id', (await supabase.from('system_configuration').select('id').limit(1).single()).data?.id);
       
-      // In a real app, this would also be an API call to save configuration
+      if (error) {
+        throw error;
+      }
+      
       console.log("Configuration saved:", data);
       
       toast({
@@ -104,6 +136,22 @@ const ConfigPanel = () => {
       });
     }
   };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>System Configuration</CardTitle>
+          <CardDescription>Loading configuration...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-40 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
