@@ -1,6 +1,16 @@
 
 import { toast } from "@/hooks/use-toast";
-import { ICalConflict } from "./icalService";
+import HttpClient from "./httpClient";
+import { ICalEvent, ICalFeed, ICalConflict } from "./icalService";
+import { PropertyPlatform } from "@/types";
+
+// Types
+export type WebhookPayload = {
+  type: string;
+  timestamp: number;
+  platform: string;
+  data: any;
+};
 
 export type WebhookResponse = {
   success: boolean;
@@ -8,227 +18,345 @@ export type WebhookResponse = {
   data?: any;
 };
 
-export type AvailabilityUpdatePayload = {
-  propertyId: string;
-  roomId: string;
-  dates: Array<{
-    date: string; // ISO string
-    available: boolean;
-    channel: string;
-  }>;
-  syncId?: string; // Optional ID to track the sync operation
+// Available webhook endpoints
+export type WebhookEndpoint = {
+  id: string;
+  name: string;
+  path: string;
+  description: string;
+  platform: PropertyPlatform;
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  testPayload: any;
 };
 
-export type RateUpdatePayload = {
-  propertyId: string;
-  roomId: string;
-  rates: Array<{
-    date: string; // ISO string
-    amount: number;
-    currency: string;
-    channel: string;
-  }>;
-  syncId?: string;
-};
-
-export type BookingPayload = {
-  bookingId?: string; // Required for modifications/cancellations
-  propertyId: string;
-  roomId: string;
-  guest: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-  };
-  dates: {
-    checkIn: string; // ISO string
-    checkOut: string; // ISO string
-  };
-  source: string; // Channel name
-  status: 'confirmed' | 'pending' | 'cancelled';
-  payment?: {
-    amount: number;
-    currency: string;
-    status: 'paid' | 'pending' | 'refunded';
-  };
-  notes?: string;
-  operationType?: 'create' | 'modify' | 'cancel';
-};
-
-export type WebhookErrorResponse = {
-  error: string;
-  code: string;
-  details?: any;
-};
-
-/**
- * Processes availability updates from Make workflows
- */
-export const handleAvailabilityUpdate = async (
-  payload: AvailabilityUpdatePayload
-): Promise<WebhookResponse> => {
-  try {
-    console.log("Received availability update:", payload);
-    
-    // In a real implementation, you would:
-    // 1. Validate the payload
-    // 2. Update your database with new availability
-    // 3. Trigger any necessary notifications or UI updates
-    
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Return success response
-    return {
-      success: true,
-      message: `Successfully updated availability for property ${payload.propertyId}, room ${payload.roomId}`,
+// In-memory storage for demo purposes
+let webhooks: WebhookEndpoint[] = [
+  {
+    id: "availability",
+    name: "Availability Update",
+    path: "/api/webhooks/availability",
+    description: "Receive availability updates from Make integrations",
+    platform: "airbnb",
+    method: "POST",
+    testPayload: {
+      type: "availability_update",
+      timestamp: Date.now(),
+      platform: "airbnb",
       data: {
-        updatedDates: payload.dates.length,
-        syncId: payload.syncId || "auto-generated-id",
+        property_id: "property-1",
+        room_id: "room-123",
+        dates: [
+          {
+            date: "2023-11-01",
+            available: true,
+            min_nights: 2,
+            max_nights: 14,
+          },
+          {
+            date: "2023-11-02",
+            available: true,
+            min_nights: 2,
+            max_nights: 14,
+          },
+          {
+            date: "2023-11-03",
+            available: false,
+            min_nights: 0,
+            max_nights: 0,
+          }
+        ]
       }
-    };
-  } catch (error) {
-    console.error("Error processing availability update:", error);
-    
-    return {
-      success: false,
-      message: `Failed to update availability: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
-  }
-};
-
-/**
- * Processes rate updates from Make workflows
- */
-export const handleRateUpdate = async (
-  payload: RateUpdatePayload
-): Promise<WebhookResponse> => {
-  try {
-    console.log("Received rate update:", payload);
-    
-    // In a real implementation, you would:
-    // 1. Validate the rate data
-    // 2. Update your database with new rates
-    // 3. Potentially trigger notifications
-    
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Return success response
-    return {
-      success: true,
-      message: `Successfully updated rates for property ${payload.propertyId}, room ${payload.roomId}`,
+    }
+  },
+  {
+    id: "rates",
+    name: "Rate Update",
+    path: "/api/webhooks/rates",
+    description: "Receive rate updates from Make integrations",
+    platform: "booking.com",
+    method: "POST",
+    testPayload: {
+      type: "rate_update",
+      timestamp: Date.now(),
+      platform: "booking.com",
       data: {
-        updatedRates: payload.rates.length,
-        syncId: payload.syncId || "auto-generated-id",
+        property_id: "property-1",
+        room_id: "room-456",
+        currency: "USD",
+        rates: [
+          {
+            date: "2023-11-01",
+            rate: 149.99,
+            min_stay_through: 2
+          },
+          {
+            date: "2023-11-02",
+            rate: 149.99,
+            min_stay_through: 2
+          },
+          {
+            date: "2023-11-03",
+            rate: 199.99,
+            min_stay_through: 2
+          }
+        ]
       }
-    };
-  } catch (error) {
-    console.error("Error processing rate update:", error);
-    
-    return {
-      success: false,
-      message: `Failed to update rates: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
+    }
+  },
+  {
+    id: "booking",
+    name: "New Booking",
+    path: "/api/webhooks/bookings",
+    description: "Receive new booking notifications from Make integrations",
+    platform: "vrbo",
+    method: "POST",
+    testPayload: {
+      type: "new_booking",
+      timestamp: Date.now(),
+      platform: "vrbo",
+      data: {
+        property_id: "property-1",
+        room_id: "room-789",
+        booking_id: "book-12345",
+        dates: {
+          check_in: "2023-11-10",
+          check_out: "2023-11-13",
+        },
+        guest: {
+          first_name: "John",
+          last_name: "Doe",
+          email: "john.doe@example.com",
+          phone: "+1234567890"
+        },
+        price: {
+          currency: "USD",
+          total: 599.97,
+          taxes: 59.97,
+          fees: 50.00
+        }
+      }
+    }
+  },
+  {
+    id: "modification",
+    name: "Booking Modification",
+    path: "/api/webhooks/bookings",
+    description: "Receive booking modification requests from Make integrations",
+    platform: "expedia",
+    method: "PUT",
+    testPayload: {
+      type: "modify_booking",
+      timestamp: Date.now(),
+      platform: "expedia",
+      data: {
+        property_id: "property-1",
+        booking_id: "book-12345",
+        changes: {
+          old_dates: {
+            check_in: "2023-11-10",
+            check_out: "2023-11-13",
+          },
+          new_dates: {
+            check_in: "2023-11-11",
+            check_out: "2023-11-15",
+          },
+          old_price: {
+            currency: "USD",
+            total: 599.97
+          },
+          new_price: {
+            currency: "USD",
+            total: 799.96
+          }
+        }
+      }
+    }
+  },
+  {
+    id: "cancellation",
+    name: "Booking Cancellation",
+    path: "/api/webhooks/bookings",
+    description: "Receive booking cancellation requests from Make integrations",
+    platform: "tripadvisor",
+    method: "DELETE",
+    testPayload: {
+      type: "cancel_booking",
+      timestamp: Date.now(),
+      platform: "tripadvisor",
+      data: {
+        property_id: "property-1",
+        booking_id: "book-12345",
+        cancellation_reason: "Guest requested",
+        refund_amount: 299.98,
+        refund_percentage: 50,
+        cancellation_date: "2023-10-25"
+      }
+    }
   }
-};
+];
 
-/**
- * Processes booking operations (create/modify/cancel) from Make workflows
- */
-export const handleBookingOperation = async (
-  payload: BookingPayload
-): Promise<WebhookResponse> => {
-  try {
-    console.log("Received booking operation:", payload);
+export class WebhookService {
+  private httpClient: HttpClient;
+  
+  constructor() {
+    this.httpClient = new HttpClient('');
+  }
+  
+  getWebhookEndpoints(): WebhookEndpoint[] {
+    return [...webhooks];
+  }
+  
+  getWebhookEndpoint(id: string): WebhookEndpoint | undefined {
+    return webhooks.find(webhook => webhook.id === id);
+  }
+  
+  // Process an incoming webhook - this is just for demo
+  processWebhook(path: string, method: string, payload: WebhookPayload): WebhookResponse {
+    // Find the relevant webhook endpoint
+    const endpoint = webhooks.find(wh => wh.path === path && wh.method === method);
     
-    // Determine operation type
-    const operationType = payload.operationType || 'create';
-    
-    // In a real implementation, you would:
-    // 1. Validate the booking data
-    // 2. Update your database with booking information
-    // 3. Update availability across channels
-    // 4. Send notifications
-    
-    // Simulate different processing times based on operation
-    const processingTime = operationType === 'create' ? 800 : 500;
-    await new Promise(resolve => setTimeout(resolve, processingTime));
-    
-    // Check for potential conflicts (example logic)
-    const hasConflict = Math.random() > 0.8; // Simulate 20% chance of conflict
-    
-    if (hasConflict) {
-      // In a real app, you would properly identify the conflict
-      const mockConflict: ICalConflict = {
-        existingEvent: {
-          id: "existing-123",
-          summary: "Existing Booking",
-          startDate: new Date(payload.dates.checkIn),
-          endDate: new Date(payload.dates.checkOut),
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-        },
-        incomingEvent: {
-          id: "incoming-456",
-          summary: `${payload.guest.firstName} ${payload.guest.lastName}`,
-          startDate: new Date(payload.dates.checkIn),
-          endDate: new Date(payload.dates.checkOut),
-          createdAt: new Date(),
-        },
-        overlapType: "full",
-        propertyId: payload.propertyId,
-        roomId: payload.roomId,
-      };
-      
-      // This would trigger the conflict resolution UI
-      // Here we're just logging it
-      console.warn("Booking conflict detected:", mockConflict);
-      
-      // In a real implementation, you'd return the conflict for resolution
+    if (!endpoint) {
       return {
         success: false,
-        message: "Booking conflict detected",
+        message: "Webhook endpoint not found"
+      };
+    }
+    
+    try {
+      // Process based on the webhook type
+      switch(payload.type) {
+        case "availability_update":
+          return this.processAvailabilityUpdate(payload);
+        case "rate_update":
+          return this.processRateUpdate(payload);
+        case "new_booking":
+          return this.processNewBooking(payload);
+        case "modify_booking":
+          return this.processBookingModification(payload);
+        case "cancel_booking":
+          return this.processBookingCancellation(payload);
+        default:
+          return {
+            success: false,
+            message: `Unknown webhook type: ${payload.type}`
+          };
+      }
+    } catch (err) {
+      console.error("Error processing webhook:", err);
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : "Unknown error"
+      };
+    }
+  }
+  
+  private processAvailabilityUpdate(payload: WebhookPayload): WebhookResponse {
+    // In a real implementation, this would update your availability database
+    return {
+      success: true,
+      message: `Processed availability update for ${payload.data.dates.length} dates`,
+      data: {
+        property_id: payload.data.property_id,
+        updated_dates: payload.data.dates.map((d: any) => d.date)
+      }
+    };
+  }
+  
+  private processRateUpdate(payload: WebhookPayload): WebhookResponse {
+    // In a real implementation, this would update your rates database
+    return {
+      success: true,
+      message: `Processed rate update for ${payload.data.rates.length} dates`,
+      data: {
+        property_id: payload.data.property_id,
+        updated_dates: payload.data.rates.map((r: any) => r.date)
+      }
+    };
+  }
+  
+  private processNewBooking(payload: WebhookPayload): WebhookResponse {
+    // In a real implementation, this would create a new booking
+    // and potentially generate conflicts if the dates are not available
+    
+    // Simulate creating a booking conflict for demo purposes
+    if (Math.random() > 0.7) {
+      // Create sample existing and incoming events
+      const existingEvent: ICalEvent = {
+        uid: "existing-123",
+        summary: "Existing Booking",
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        status: "CONFIRMED"
+      };
+      
+      const incomingEvent: ICalEvent = {
+        uid: "incoming-456",
+        summary: "New Overlapping Booking",
+        startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        lastModified: new Date(),
+        status: "CONFIRMED"
+      };
+      
+      // Create a conflict
+      const conflict: ICalConflict = {
+        existingEvent,
+        incomingEvent,
+        resolution: 'keep_existing',
+        propertyId: payload.data.property_id,
+        roomId: payload.data.room_id
+      };
+      
+      return {
+        success: false,
+        message: "Booking creation failed due to date conflict",
         data: {
-          conflict: mockConflict,
-          requiresResolution: true,
+          conflict
         }
       };
     }
     
-    // Return appropriate response based on operation type
-    const messages = {
-      create: `Successfully created booking for ${payload.guest.firstName} ${payload.guest.lastName}`,
-      modify: `Successfully modified booking ${payload.bookingId}`,
-      cancel: `Successfully cancelled booking ${payload.bookingId}`,
-    };
-    
     return {
       success: true,
-      message: messages[operationType],
+      message: "Booking created successfully",
       data: {
-        bookingId: payload.bookingId || `new-booking-${Date.now()}`,
-        status: payload.status,
-        operationType,
+        booking_id: `generated-${Date.now()}`,
+        property_id: payload.data.property_id,
+        status: "confirmed"
       }
     };
-  } catch (error) {
-    console.error(`Error processing booking ${payload.operationType || 'creation'}:`, error);
-    
+  }
+  
+  private processBookingModification(payload: WebhookPayload): WebhookResponse {
+    // In a real implementation, this would update an existing booking
     return {
-      success: false,
-      message: `Failed to process booking: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      success: true,
+      message: "Booking modification processed successfully",
+      data: {
+        booking_id: payload.data.booking_id,
+        property_id: payload.data.property_id,
+        status: "modified"
+      }
     };
   }
-};
+  
+  private processBookingCancellation(payload: WebhookPayload): WebhookResponse {
+    // In a real implementation, this would cancel an existing booking
+    return {
+      success: true,
+      message: "Booking cancellation processed successfully",
+      data: {
+        booking_id: payload.data.booking_id,
+        property_id: payload.data.property_id,
+        status: "cancelled",
+        refund_amount: payload.data.refund_amount
+      }
+    };
+  }
+}
 
-/**
- * Verify webhook auth token
- */
-export const verifyWebhookAuth = (token: string): boolean => {
-  // In a real implementation, this would verify against stored tokens
-  // For demo purposes, we're using a simple static token
-  const validToken = "make-webhook-secret-token";
-  return token === validToken;
-};
-
+// Create and export a singleton instance
+export const webhookService = new WebhookService();
