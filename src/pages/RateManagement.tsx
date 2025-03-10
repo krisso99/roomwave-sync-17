@@ -126,7 +126,7 @@ const RateManagement: React.FC = () => {
     : roomTypes;
   
   return (
-    <div className="h-full w-full max-w-full overflow-x-hidden">
+    <div className="w-full overflow-x-auto">
       <div className="px-4 py-6 space-y-6">
         {/* Header with action buttons */}
         <RateManagementHeader 
@@ -138,7 +138,7 @@ const RateManagement: React.FC = () => {
         
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsList className="w-full grid grid-cols-2 md:grid-cols-4">
             <TabsTrigger value="calendar">
               <Calendar className="mr-2 h-4 w-4" />
               Calendar View
