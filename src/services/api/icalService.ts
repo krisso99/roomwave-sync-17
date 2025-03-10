@@ -1,3 +1,4 @@
+
 import { toast } from "@/components/ui/use-toast";
 import HttpClient from "./httpClient";
 import { format, addDays, parseISO } from "date-fns";
@@ -432,13 +433,12 @@ export class ICalService {
       const timestamp = Date.now(); // Add cache-busting parameter
       
       // Use a direct .ics extension for better compatibility with calendar clients
-      // Static approach for production use
-      let url = `${baseUrl}/api/ical/property-${propertyId}${roomId ? `-${roomId}` : ''}.ics?t=${timestamp}`;
+      let url = `${baseUrl}/api/ical/property-${propertyId}.ics?t=${timestamp}`;
       
-      // Use PHP generator if we detect it's a server environment that supports it
-      if (window.location.hostname !== 'localhost' && 
-          window.location.hostname !== '127.0.0.1' &&
-          !window.location.hostname.includes('lovableproject.com')) {
+      // If PHP is available, use the PHP generator for more dynamic content
+      // This provides better compatibility with Airbnb and other platforms
+      if (!window.location.hostname.includes('localhost') && 
+          !window.location.hostname.includes('127.0.0.1')) {
         url = `${baseUrl}/api/ical/generate.php?propertyId=${encodeURIComponent(propertyId)}&t=${timestamp}`;
         
         if (roomId) {
@@ -450,7 +450,7 @@ export class ICalService {
     } catch (error) {
       console.error("Error generating iCal URL:", error);
       // Fallback to the static sample file if anything goes wrong
-      return `${this.getBaseUrl()}/api/ical/sample.ics`;
+      return `${this.getBaseUrl()}/api/ical/sample.ics?t=${Date.now()}`;
     }
   }
   
