@@ -1,6 +1,6 @@
 import { toast } from "@/components/ui/use-toast";
 import HttpClient from "./httpClient";
-import { format, addDays, parseISO } from "date-fns";
+import { format, addDays, parseISO, parse, isBefore, isAfter } from "date-fns";
 import { supabase } from '@/integrations/supabase/client';
 
 // Types for iCal feed configuration
@@ -299,72 +299,78 @@ export class ICalService {
     }
 
     try {
-      // In a real implementation, we would fetch the iCal data from the URL
-      // For demo purposes, we'll simulate this process
-      await this.updateFeed(feedId, { status: 'active', lastSync: new Date() });
-
-      // Simulate processing events
+      // Update the feed status to indicate sync in progress
+      await this.updateFeed(feedId, { status: 'pending' });
+      
+      // Fetch the iCal data from the URL
+      const response = await fetch(feed.url, {
+        headers: {
+          'Accept': 'text/calendar',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch iCal data: ${response.status} ${response.statusText}`);
+      }
+      
+      const icalContent = await response.text();
+      
+      // Parse the iCal data
+      const events = this.parseICalString(icalContent);
+      
+      console.log(`Parsed ${events.length} events from iCal feed`);
+      
+      // Process the events
+      // For now, we'll simulate this by just storing the number of events
       const result: ICalSyncResult = {
         success: true,
-        eventsProcessed: Math.floor(Math.random() * 10) + 1,
-        eventsCreated: Math.floor(Math.random() * 5),
-        eventsUpdated: Math.floor(Math.random() * 3),
+        eventsProcessed: events.length,
+        eventsCreated: events.length, // Simulate all events being new
+        eventsUpdated: 0,
         eventsRemoved: 0,
         conflicts: []
       };
-
-      // Simulate a conflict occasionally
-      if (Math.random() > 0.7) {
-        const startDate = new Date();
-        const endDate = addDays(startDate, 3);
+      
+      // Check for conflicts
+      const conflicts = this.detectConflicts(events, feed.propertyId, feed.roomId);
+      
+      if (conflicts.length > 0) {
+        result.conflicts = conflicts;
+        result.success = false;
         
-        result.conflicts.push({
-          existingEvent: {
-            uid: "existing-123",
-            summary: "Existing Booking",
-            startDate,
-            endDate,
-            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-            lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-            status: "CONFIRMED"
-          },
-          incomingEvent: {
-            uid: "incoming-456",
-            summary: "New Overlapping Booking",
-            startDate: addDays(startDate, -1),
-            endDate: addDays(startDate, 2),
-            createdAt: new Date(),
-            lastModified: new Date(),
-            status: "CONFIRMED"
-          },
-          resolution: 'keep_existing',
-          propertyId: feed.propertyId,
-          roomId: feed.roomId
+        await this.updateFeed(feedId, { 
+          status: 'error', 
+          error: 'Conflicts detected during sync',
+          lastSync: new Date()
         });
         
-        result.success = false;
-      }
-
-      if (!result.success) {
-        await this.updateFeed(feedId, { status: 'error', error: 'Conflicts detected during sync' });
         toast({
           title: "iCal Sync Warning",
-          description: `Completed with ${result.conflicts.length} conflicts. Review required.`,
+          description: `Completed with ${conflicts.length} conflicts. Review required.`,
           variant: "destructive",
         });
       } else {
+        await this.updateFeed(feedId, { 
+          status: 'active',
+          error: undefined,
+          lastSync: new Date()
+        });
+        
         toast({
           title: "iCal Sync Completed",
           description: `Processed ${result.eventsProcessed} events, created ${result.eventsCreated}, updated ${result.eventsUpdated}`,
         });
       }
-
+      
       return result;
     } catch (error) {
       console.error("iCal import error:", error);
+      
       await this.updateFeed(feedId, { 
         status: 'error', 
-        error: error instanceof Error ? error.message : 'Unknown error during sync' 
+        error: error instanceof Error ? error.message : 'Unknown error during sync',
+        lastSync: new Date()
       });
       
       toast({
@@ -382,6 +388,39 @@ export class ICalService {
         conflicts: []
       };
     }
+  }
+
+  // Detect conflicts between events
+  private detectConflicts(events: ICalEvent[], propertyId: string, roomId?: string): ICalConflict[] {
+    // In a real implementation, this would check against existing bookings
+    // For demo purposes, we'll just simulate conflicts
+    const conflicts: ICalConflict[] = [];
+    
+    if (events.length > 0 && Math.random() > 0.6) {
+      // Simulate a conflict with the first event
+      const conflictEvent = events[0];
+      
+      // Create a simulated existing event that overlaps
+      const existingEvent: ICalEvent = {
+        uid: "existing-123",
+        summary: "Existing Booking",
+        startDate: new Date(conflictEvent.startDate.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days before
+        endDate: new Date(conflictEvent.startDate.getTime() + 1 * 24 * 60 * 60 * 1000), // 1 day after start
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Created a week ago
+        lastModified: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        status: "CONFIRMED"
+      };
+      
+      conflicts.push({
+        existingEvent,
+        incomingEvent: conflictEvent,
+        resolution: 'keep_existing',
+        propertyId,
+        roomId
+      });
+    }
+    
+    return conflicts;
   }
 
   // Export bookings as iCal
@@ -470,19 +509,86 @@ export class ICalService {
   // Parse iCal date format
   private parseICalDate(icalDate: string): Date {
     // Parse formats like: 20210101T120000Z
-    // In a real implementation, handle timezone conversion
     try {
-      const year = icalDate.substring(0, 4);
-      const month = icalDate.substring(4, 6);
-      const day = icalDate.substring(6, 8);
-      const hour = icalDate.substring(9, 11);
-      const minute = icalDate.substring(11, 13);
-      const second = icalDate.substring(13, 15);
-      
-      return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+      if (icalDate.indexOf('Z') !== -1) {
+        // UTC date
+        return parse(icalDate, "yyyyMMdd'T'HHmmss'Z'", new Date());
+      } else {
+        // Local date
+        return parse(icalDate, "yyyyMMdd'T'HHmmss", new Date());
+      }
     } catch (error) {
-      console.error("Error parsing iCal date:", error);
+      console.error("Error parsing iCal date:", error, icalDate);
       return new Date();
+    }
+  }
+  
+  // Parse an iCal string into events
+  parseICalString(icalString: string): ICalEvent[] {
+    try {
+      const events: ICalEvent[] = [];
+      const lines = icalString.split(/\r\n|\n|\r/);
+      
+      let currentEvent: Partial<ICalEvent> | null = null;
+      let inEvent = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // Handle line folding (continued lines start with a space)
+        if (i > 0 && (lines[i].startsWith(' ') || lines[i].startsWith('\t'))) {
+          // This is a continuation of the previous line
+          continue;
+        }
+        
+        if (line === 'BEGIN:VEVENT') {
+          inEvent = true;
+          currentEvent = {
+            createdAt: new Date(),
+            lastModified: new Date(),
+            status: 'CONFIRMED'
+          };
+        } else if (line === 'END:VEVENT' && currentEvent) {
+          inEvent = false;
+          
+          // Only add the event if it has all required fields
+          if (currentEvent.uid && currentEvent.startDate && currentEvent.endDate && currentEvent.summary) {
+            events.push(currentEvent as ICalEvent);
+          } else {
+            console.warn('Skipping incomplete event:', currentEvent);
+          }
+          
+          currentEvent = null;
+        } else if (inEvent && currentEvent) {
+          // Process event properties
+          if (line.startsWith('UID:')) {
+            currentEvent.uid = line.substring(4);
+          } else if (line.startsWith('SUMMARY:')) {
+            currentEvent.summary = line.substring(8);
+          } else if (line.startsWith('DESCRIPTION:')) {
+            currentEvent.description = line.substring(12);
+          } else if (line.startsWith('LOCATION:')) {
+            currentEvent.location = line.substring(9);
+          } else if (line.startsWith('DTSTART:')) {
+            currentEvent.startDate = this.parseICalDate(line.substring(8));
+          } else if (line.startsWith('DTEND:')) {
+            currentEvent.endDate = this.parseICalDate(line.substring(6));
+          } else if (line.startsWith('CREATED:')) {
+            currentEvent.createdAt = this.parseICalDate(line.substring(8));
+          } else if (line.startsWith('LAST-MODIFIED:')) {
+            currentEvent.lastModified = this.parseICalDate(line.substring(14));
+          } else if (line.startsWith('STATUS:')) {
+            currentEvent.status = line.substring(7);
+          } else if (line.startsWith('ORGANIZER:')) {
+            currentEvent.organizer = line.substring(10);
+          }
+        }
+      }
+      
+      return events;
+    } catch (error) {
+      console.error("Error parsing iCal string:", error);
+      return [];
     }
   }
   
@@ -491,13 +597,6 @@ export class ICalService {
     // In a real implementation, this would apply the resolution
     // For demo purposes, we'll just simulate success
     return Promise.resolve(true);
-  }
-  
-  // Parse an iCal string into events
-  parseICalString(icalString: string): ICalEvent[] {
-    // In a real implementation, this would parse the iCal string
-    // For demo purposes, we'll return empty array
-    return [];
   }
   
   // Start auto-sync for a feed

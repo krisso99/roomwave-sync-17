@@ -22,14 +22,14 @@ function formatICalDate($timestamp) {
 // Get current time
 $now = time();
 
-// Create sample bookings
-// First booking: starts 3 days from now, 2 days duration
-$booking1Start = $now + (3 * 24 * 60 * 60);
-$booking1End = $booking1Start + (2 * 24 * 60 * 60);
+// Create sample bookings - more realistic dates that show actual availability
+// First booking: starts tomorrow, 3 days duration
+$booking1Start = strtotime('+1 day', $now);
+$booking1End = strtotime('+4 days', $now);
 
-// Second booking: starts 10 days from now, 3 days duration
-$booking2Start = $now + (10 * 24 * 60 * 60);
-$booking2End = $booking2Start + (3 * 24 * 60 * 60);
+// Second booking: starts 7 days from now, 2 days duration
+$booking2Start = strtotime('+7 days', $now);
+$booking2End = strtotime('+9 days', $now);
 
 // Generate the iCal content
 $icalContent = "BEGIN:VCALENDAR\r\n";
@@ -44,7 +44,7 @@ $icalContent .= "UID:booking-{$propertyId}-1@riadsync.com\r\n";
 $icalContent .= "DTSTAMP:" . formatICalDate($now) . "\r\n";
 $icalContent .= "DTSTART:" . formatICalDate($booking1Start) . "\r\n";
 $icalContent .= "DTEND:" . formatICalDate($booking1End) . "\r\n";
-$icalContent .= "SUMMARY:" . ($roomId ? "Room {$roomId}" : "Property") . " Booking\r\n";
+$icalContent .= "SUMMARY:Booked\r\n";
 $icalContent .= "STATUS:CONFIRMED\r\n";
 $icalContent .= "END:VEVENT\r\n";
 
@@ -54,7 +54,7 @@ $icalContent .= "UID:booking-{$propertyId}-2@riadsync.com\r\n";
 $icalContent .= "DTSTAMP:" . formatICalDate($now) . "\r\n";
 $icalContent .= "DTSTART:" . formatICalDate($booking2Start) . "\r\n";
 $icalContent .= "DTEND:" . formatICalDate($booking2End) . "\r\n";
-$icalContent .= "SUMMARY:" . ($roomId ? "Room {$roomId}" : "Property") . " Booking\r\n";
+$icalContent .= "SUMMARY:Booked\r\n";
 $icalContent .= "STATUS:CONFIRMED\r\n";
 $icalContent .= "END:VEVENT\r\n";
 
