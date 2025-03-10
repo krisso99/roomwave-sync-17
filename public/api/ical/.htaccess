@@ -17,11 +17,18 @@
 </Files>
 
 # Create property-specific iCal feeds with clean URLs
-# This rewrites requests like property-123.ics to the generate.php script
 RewriteEngine On
+
+# Fix for double "property-property-" in URLs
+RewriteRule ^property-property-([^/]+)\.ics$ generate.php?propertyId=property-$1 [L]
+
+# Standard property URL format
 RewriteRule ^property-([^/]+)\.ics$ generate.php?propertyId=$1 [L]
 
-# Fallback for room-specific feeds
+# Fallback for room-specific feeds with property-property prefix
+RewriteRule ^room-([^/]+)-property-property-([^/]+)\.ics$ generate.php?roomId=$1&propertyId=property-$2 [L]
+
+# Room-specific feeds standard format
 RewriteRule ^room-([^/]+)-property-([^/]+)\.ics$ generate.php?roomId=$1&propertyId=$2 [L]
 
 # Prevent caching of iCal feeds

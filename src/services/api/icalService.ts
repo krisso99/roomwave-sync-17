@@ -434,10 +434,13 @@ export class ICalService {
       // This creates a clean URL that ends with .ics as required by Airbnb
       let url = '';
       
+      // Remove any existing "property-" prefix to avoid duplication
+      const cleanPropertyId = propertyId.replace(/^property-/, '');
+      
       if (roomId) {
-        url = `${baseUrl}/api/ical/room-${roomId}-property-${propertyId}.ics`;
+        url = `${baseUrl}/api/ical/room-${roomId}-property-${cleanPropertyId}.ics`;
       } else {
-        url = `${baseUrl}/api/ical/property-${propertyId}.ics`;
+        url = `${baseUrl}/api/ical/property-${cleanPropertyId}.ics`;
       }
       
       // Our .htaccess rewrite rule will handle directing this to the PHP script

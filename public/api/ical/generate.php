@@ -11,6 +11,9 @@ header('Expires: 0');
 $propertyId = isset($_GET['propertyId']) ? $_GET['propertyId'] : 'default';
 $roomId = isset($_GET['roomId']) ? $_GET['roomId'] : '';
 
+// Log the parameters for debugging
+error_log("iCal feed requested for property: $propertyId, room: $roomId");
+
 // Format date for iCal - YYYYMMDDTHHMMSSZ format
 function formatICalDate($timestamp) {
     return gmdate('Ymd\THis\Z', $timestamp);
