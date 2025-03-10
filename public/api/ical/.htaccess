@@ -21,6 +21,9 @@
 RewriteEngine On
 RewriteRule ^property-([^/]+)\.ics$ generate.php?propertyId=$1 [L]
 
+# Fallback for room-specific feeds
+RewriteRule ^room-([^/]+)-property-([^/]+)\.ics$ generate.php?roomId=$1&propertyId=$2 [L]
+
 # Prevent caching of iCal feeds
 <IfModule mod_headers.c>
   <FilesMatch "\.(ics|php)$">

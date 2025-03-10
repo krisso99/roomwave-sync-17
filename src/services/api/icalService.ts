@@ -432,10 +432,16 @@ export class ICalService {
       
       // For Airbnb compatibility, always use direct .ics file extension
       // This creates a clean URL that ends with .ics as required by Airbnb
-      let url = `${baseUrl}/api/ical/property-${propertyId}.ics`;
+      let url = '';
+      
+      if (roomId) {
+        url = `${baseUrl}/api/ical/room-${roomId}-property-${propertyId}.ics`;
+      } else {
+        url = `${baseUrl}/api/ical/property-${propertyId}.ics`;
+      }
       
       // Our .htaccess rewrite rule will handle directing this to the PHP script
-      // No query parameters in the URL for better compatibility
+      // No query parameters in the URL for better compatibility with Airbnb
       
       return url;
     } catch (error) {
