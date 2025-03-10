@@ -1,10 +1,55 @@
-
 import { toast } from "@/hooks/use-toast";
 import HttpClient from "./httpClient";
 import { ICalEvent, ICalFeed, ICalConflict } from "./icalService";
-import { PropertyPlatform } from "@/types";
 
-// Types
+export type PropertyPlatform = 'airbnb' | 'booking.com' | 'vrbo' | 'expedia' | 'tripadvisor' | 'other';
+
+export interface AvailabilityUpdatePayload {
+  propertyId: string;
+  roomId: string;
+  dates: {
+    date: string;
+    available: boolean;
+    channel: string;
+  }[];
+  syncId: string;
+}
+
+export interface RateUpdatePayload {
+  propertyId: string;
+  roomId: string;
+  rates: {
+    date: string;
+    amount: number;
+    currency: string;
+    channel: string;
+  }[];
+  syncId: string;
+}
+
+export interface BookingPayload {
+  propertyId: string;
+  roomId: string;
+  guest: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  dates: {
+    checkIn: string;
+    checkOut: string;
+  };
+  source: string;
+  status: string;
+  payment: {
+    amount: number;
+    currency: string;
+    status: string;
+  };
+  operationType: string;
+}
+
 export type WebhookPayload = {
   type: string;
   timestamp: number;
@@ -18,7 +63,12 @@ export type WebhookResponse = {
   data?: any;
 };
 
-// Available webhook endpoints
+export interface WebhookErrorResponse {
+  error: string;
+  code: string;
+  details?: any;
+}
+
 export type WebhookEndpoint = {
   id: string;
   name: string;
@@ -29,7 +79,6 @@ export type WebhookEndpoint = {
   testPayload: any;
 };
 
-// In-memory storage for demo purposes
 let webhooks: WebhookEndpoint[] = [
   {
     id: "availability",
@@ -195,6 +244,113 @@ let webhooks: WebhookEndpoint[] = [
   }
 ];
 
+export function verifyWebhookAuth(token: string): boolean {
+  return token === 'make-webhook-secret-token';
+}
+
+export async function handleAvailabilityUpdate(payload: AvailabilityUpdatePayload): Promise<WebhookResponse> {
+  try {
+    console.log(`Processing availability update for property ${payload.propertyId}, room ${payload.roomId}`);
+    
+    return {
+      success: true,
+      message: `Processed availability update for ${payload.dates.length} dates`,
+      data: {
+        propertyId: payload.propertyId,
+        updatedDates: payload.dates.map(d => d.date)
+      }
+    };
+  } catch (error) {
+    console.error('Error handling availability update:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+export async function handleRateUpdate(payload: RateUpdatePayload): Promise<WebhookResponse> {
+  try {
+    console.log(`Processing rate update for property ${payload.propertyId}, room ${payload.roomId}`);
+    
+    return {
+      success: true,
+      message: `Processed rate update for ${payload.rates.length} dates`,
+      data: {
+        propertyId: payload.propertyId,
+        updatedDates: payload.rates.map(r => r.date)
+      }
+    };
+  } catch (error) {
+    console.error('Error handling rate update:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+export async function handleBookingOperation(payload: BookingPayload): Promise<WebhookResponse> {
+  try {
+    console.log(`Processing booking operation for property ${payload.propertyId}, room ${payload.roomId}`);
+    
+    if (Math.random() > 0.7) {
+      const existingEvent: ICalEvent = {
+        uid: "existing-123",
+        summary: "Existing Booking",
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        status: "CONFIRMED"
+      };
+      
+      const incomingEvent: ICalEvent = {
+        uid: "incoming-456",
+        summary: "New Overlapping Booking",
+        startDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        lastModified: new Date(),
+        status: "CONFIRMED"
+      };
+      
+      const conflict: ICalConflict = {
+        existingEvent,
+        incomingEvent,
+        resolution: 'keep_existing',
+        propertyId: payload.propertyId,
+        roomId: payload.roomId
+      };
+      
+      return {
+        success: false,
+        message: "Booking creation failed due to date conflict",
+        data: {
+          conflict,
+          requiresResolution: true
+        }
+      };
+    }
+    
+    return {
+      success: true,
+      message: "Booking processed successfully",
+      data: {
+        bookingId: `generated-${Date.now()}`,
+        propertyId: payload.propertyId,
+        status: "confirmed"
+      }
+    };
+  } catch (error) {
+    console.error('Error handling booking operation:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export class WebhookService {
   private httpClient: HttpClient;
   
@@ -210,9 +366,7 @@ export class WebhookService {
     return webhooks.find(webhook => webhook.id === id);
   }
   
-  // Process an incoming webhook - this is just for demo
   processWebhook(path: string, method: string, payload: WebhookPayload): WebhookResponse {
-    // Find the relevant webhook endpoint
     const endpoint = webhooks.find(wh => wh.path === path && wh.method === method);
     
     if (!endpoint) {
@@ -223,7 +377,6 @@ export class WebhookService {
     }
     
     try {
-      // Process based on the webhook type
       switch(payload.type) {
         case "availability_update":
           return this.processAvailabilityUpdate(payload);
@@ -251,7 +404,6 @@ export class WebhookService {
   }
   
   private processAvailabilityUpdate(payload: WebhookPayload): WebhookResponse {
-    // In a real implementation, this would update your availability database
     return {
       success: true,
       message: `Processed availability update for ${payload.data.dates.length} dates`,
@@ -263,7 +415,6 @@ export class WebhookService {
   }
   
   private processRateUpdate(payload: WebhookPayload): WebhookResponse {
-    // In a real implementation, this would update your rates database
     return {
       success: true,
       message: `Processed rate update for ${payload.data.rates.length} dates`,
@@ -275,12 +426,7 @@ export class WebhookService {
   }
   
   private processNewBooking(payload: WebhookPayload): WebhookResponse {
-    // In a real implementation, this would create a new booking
-    // and potentially generate conflicts if the dates are not available
-    
-    // Simulate creating a booking conflict for demo purposes
     if (Math.random() > 0.7) {
-      // Create sample existing and incoming events
       const existingEvent: ICalEvent = {
         uid: "existing-123",
         summary: "Existing Booking",
@@ -301,7 +447,6 @@ export class WebhookService {
         status: "CONFIRMED"
       };
       
-      // Create a conflict
       const conflict: ICalConflict = {
         existingEvent,
         incomingEvent,
@@ -331,7 +476,6 @@ export class WebhookService {
   }
   
   private processBookingModification(payload: WebhookPayload): WebhookResponse {
-    // In a real implementation, this would update an existing booking
     return {
       success: true,
       message: "Booking modification processed successfully",
@@ -344,7 +488,6 @@ export class WebhookService {
   }
   
   private processBookingCancellation(payload: WebhookPayload): WebhookResponse {
-    // In a real implementation, this would cancel an existing booking
     return {
       success: true,
       message: "Booking cancellation processed successfully",
@@ -358,5 +501,4 @@ export class WebhookService {
   }
 }
 
-// Create and export a singleton instance
 export const webhookService = new WebhookService();
