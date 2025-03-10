@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
@@ -40,7 +39,6 @@ import ICalLimitations from '@/components/channels/ICalLimitations';
 import { PlatformCredentials, SyncOptions } from '@/services/api/bookingPlatforms';
 import { ICalFeed, ICalConflict } from '@/services/api/icalService';
 
-// Icons for each platform
 const platformIcons: Record<string, React.ReactNode> = {
   'Booking.com': <Building className="h-5 w-5 text-blue-600" />,
   'Expedia': <Layers className="h-5 w-5 text-yellow-600" />,
@@ -58,7 +56,6 @@ const ChannelsContent = () => {
   const [selectedICalFeed, setSelectedICalFeed] = useState<ICalFeed | null>(null);
   const [iCalConflicts, setICalConflicts] = useState<ICalConflict[]>([]);
   
-  // Platform integrations context
   const { 
     platforms, 
     supportedPlatforms, 
@@ -71,7 +68,6 @@ const ChannelsContent = () => {
     isSyncing: isPlatformSyncing,
   } = usePlatformIntegrations();
   
-  // iCal feeds context
   const {
     feeds: icalFeeds,
     isLoading: isLoadingFeeds,
@@ -81,25 +77,22 @@ const ChannelsContent = () => {
     updateFeed,
     deleteFeed,
     syncFeed,
-    resolveConflict
+    resolveConflict,
+    generateExportUrl
   } = useICalFeeds();
   
-  // Filter platforms based on search query
   const filteredPlatforms = supportedPlatforms.filter(platform => 
     platform.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  // Filter iCal feeds based on search query
   const filteredICalFeeds = icalFeeds.filter(feed => 
     feed.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     feed.url.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
-  // Calculate if we have any sync issues
   useEffect(() => {
     let hasIssues = false;
     
-    // Check API platforms for issues
     for (const platform of supportedPlatforms) {
       const status = getPlatformStatus(platform);
       if (status && status.connected && status.errorCount > 0) {
@@ -108,7 +101,6 @@ const ChannelsContent = () => {
       }
     }
     
-    // Check iCal feeds for issues
     if (!hasIssues) {
       for (const feed of icalFeeds) {
         if (feed.status === 'error') {
@@ -121,19 +113,16 @@ const ChannelsContent = () => {
     setShowSyncIssues(hasIssues);
   }, [supportedPlatforms, getPlatformStatus, icalFeeds]);
   
-  // Handle platform configuration
   const handleConfigurePlatform = (platform: string) => {
     setSelectedPlatform(platform);
     setIsPlatformDialogOpen(true);
   };
   
-  // Handle iCal feed configuration
   const handleConfigureICalFeed = (feed: ICalFeed | null = null) => {
     setSelectedICalFeed(feed);
     setIsICalDialogOpen(true);
   };
   
-  // Handle connection to a platform
   const handleConnectPlatform = async (credentials: PlatformCredentials) => {
     if (!selectedPlatform) return false;
     
@@ -159,7 +148,6 @@ const ChannelsContent = () => {
     }
   };
   
-  // Handle disconnection from a platform
   const handleDisconnectPlatform = (platform: string) => {
     disconnectPlatform(platform);
     
@@ -169,10 +157,8 @@ const ChannelsContent = () => {
     });
   };
   
-  // Handle platform sync
   const handleSyncPlatform = async (platform: string) => {
     try {
-      // In a real application, you would get the actual property ID
       const propertyId = "current-property-id";
       
       const success = await syncPlatform(platform, propertyId);
@@ -196,21 +182,17 @@ const ChannelsContent = () => {
     }
   };
   
-  // Handle sync configuration
   const handleConfigureSync = (options: SyncOptions) => {
     if (!selectedPlatform) return;
     
     configurePlatformSync(selectedPlatform, options);
   };
   
-  // Handle iCal feed form submission
   const handleICalFormSubmit = async (values: any) => {
     try {
       if (selectedICalFeed) {
-        // Update existing feed
         await updateFeed(selectedICalFeed.id, values);
       } else {
-        // Add new feed
         await addFeed(values);
       }
       
@@ -221,7 +203,6 @@ const ChannelsContent = () => {
     }
   };
   
-  // Handle iCal feed deletion
   const handleDeleteICalFeed = async (id: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this feed?");
     if (confirmed) {
@@ -229,12 +210,10 @@ const ChannelsContent = () => {
     }
   };
   
-  // Handle iCal feed sync
   const handleSyncICalFeed = async (id: string) => {
     try {
       const result = await syncFeed(id);
       
-      // Check if there are conflicts
       if (result.conflicts.length > 0) {
         setICalConflicts(result.conflicts);
       }
@@ -246,12 +225,10 @@ const ChannelsContent = () => {
     }
   };
   
-  // Handle conflict resolution
   const handleResolveConflict = async (conflict: ICalConflict, resolution: 'keep_existing' | 'use_incoming' | 'manual') => {
     try {
       await resolveConflict(conflict, resolution);
       
-      // Remove the resolved conflict from the list
       setICalConflicts(current => 
         current.filter(c => 
           c.existingEvent.uid !== conflict.existingEvent.uid || 
@@ -277,7 +254,8 @@ const ChannelsContent = () => {
     }
   };
   
-  // Copy iCal URL to clipboard
+  const propertyICalUrl = generateExportUrl('property-1');
+  
   const handleCopyICalUrl = (url: string) => {
     navigator.clipboard.writeText(url).then(() => {
       toast({
@@ -312,7 +290,6 @@ const ChannelsContent = () => {
         </div>
       </div>
 
-      {/* Channels Tabs */}
       <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="mb-6">
         <TabsList>
           <TabsTrigger value="platforms">API Platforms</TabsTrigger>
@@ -328,7 +305,6 @@ const ChannelsContent = () => {
         </TabsList>
       </Tabs>
 
-      {/* Platform Integration Dialog */}
       <Dialog open={isPlatformDialogOpen} onOpenChange={setIsPlatformDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -347,7 +323,6 @@ const ChannelsContent = () => {
         </DialogContent>
       </Dialog>
       
-      {/* iCal Feed Dialog */}
       <Dialog open={isICalDialogOpen} onOpenChange={setIsICalDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -364,7 +339,6 @@ const ChannelsContent = () => {
         </DialogContent>
       </Dialog>
       
-      {/* iCal Information Dialog */}
       <Dialog open={isICalInfoOpen} onOpenChange={setIsICalInfoOpen}>
         <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
@@ -375,7 +349,6 @@ const ChannelsContent = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Platforms List */}
       {activeTab === 'platforms' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPlatforms.length > 0 ? (
@@ -425,10 +398,8 @@ const ChannelsContent = () => {
         </div>
       )}
 
-      {/* iCal Feeds Tab */}
       {activeTab === 'ical' && (
         <>
-          {/* Show conflicts if any exist */}
           {iCalConflicts.length > 0 && (
             <div className="mb-6">
               <ICalConflictResolver 
@@ -462,7 +433,6 @@ const ChannelsContent = () => {
             </div>
           </div>
           
-          {/* Our iCal Export */}
           <div className="mb-6 p-4 border rounded-lg bg-slate-50">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
@@ -474,13 +444,13 @@ const ChannelsContent = () => {
               <div className="flex space-x-2 w-full sm:w-auto">
                 <Input 
                   readOnly 
-                  value="https://app.example.com/ical/property/123456.ics"
+                  value={propertyICalUrl}
                   className="text-xs font-mono bg-white"
                 />
                 <Button 
                   variant="outline" 
                   size="icon"
-                  onClick={() => handleCopyICalUrl("https://app.example.com/ical/property/123456.ics")}
+                  onClick={() => handleCopyICalUrl(propertyICalUrl)}
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
@@ -488,15 +458,12 @@ const ChannelsContent = () => {
             </div>
           </div>
           
-          {/* iCal Feeds List */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {isLoadingFeeds ? (
-              // Loading state
               Array.from({ length: 3 }).map((_, index) => (
                 <div key={index} className="h-48 rounded-lg bg-muted animate-pulse" />
               ))
             ) : filteredICalFeeds.length > 0 ? (
-              // Display feeds
               filteredICalFeeds.map((feed) => (
                 <ICalFeedCard
                   key={feed.id}
@@ -508,7 +475,6 @@ const ChannelsContent = () => {
                 />
               ))
             ) : (
-              // No feeds found
               <div className="col-span-full flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border border-dashed">
                 <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">No iCal feeds found</h3>
@@ -533,7 +499,6 @@ const ChannelsContent = () => {
         </>
       )}
 
-      {/* Issues Tab */}
       {activeTab === 'issues' && showSyncIssues && (
         <div className="grid grid-cols-1 gap-4">
           <div className="p-4 border rounded-lg bg-amber-50 text-amber-800 flex items-start">
@@ -546,7 +511,6 @@ const ChannelsContent = () => {
             </div>
           </div>
           
-          {/* API Platform Issues */}
           {supportedPlatforms.map(platform => {
             const status = getPlatformStatus(platform);
             
@@ -589,7 +553,6 @@ const ChannelsContent = () => {
             return null;
           })}
           
-          {/* iCal Feed Issues */}
           {icalFeeds.map(feed => {
             if (feed.status === 'error') {
               return (
@@ -640,7 +603,6 @@ const ChannelsContent = () => {
   );
 };
 
-// Wrap the component with the Providers
 const Channels = () => {
   return (
     <PlatformIntegrationsProvider>

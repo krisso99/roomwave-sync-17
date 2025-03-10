@@ -57,15 +57,14 @@ const ConfigPanel = () => {
   
   // Load saved configuration or use defaults
   const loadSavedConfig = (): Partial<ConfigFormValues> => {
-    const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (savedConfig) {
-      try {
+    try {
+      const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+      if (savedConfig) {
         const parsedConfig = JSON.parse(savedConfig);
         return { ...defaultValues, ...parsedConfig };
-      } catch (error) {
-        console.error('Error parsing saved configuration:', error);
-        return defaultValues;
       }
+    } catch (error) {
+      console.error('Error parsing saved configuration:', error);
     }
     return defaultValues;
   };
@@ -85,16 +84,25 @@ const ConfigPanel = () => {
   }, []);
 
   const onSubmit = (data: ConfigFormValues) => {
-    // Save configuration to localStorage
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(data));
-    
-    // In a real app, this would also be an API call to save configuration
-    console.log("Configuration saved:", data);
-    
-    toast({
-      title: "Configuration saved",
-      description: "Your changes have been saved successfully.",
-    });
+    try {
+      // Save configuration to localStorage
+      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(data));
+      
+      // In a real app, this would also be an API call to save configuration
+      console.log("Configuration saved:", data);
+      
+      toast({
+        title: "Configuration saved",
+        description: "Your changes have been saved successfully.",
+      });
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      toast({
+        title: "Error saving configuration",
+        description: "There was a problem saving your changes.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 import HttpClient from "./httpClient";
 import { format, addDays, parseISO } from "date-fns";
@@ -323,15 +322,15 @@ export class ICalService {
   
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
-    // In a real implementation, this would generate a secure, unique URL
-    // Possibly with authentication tokens
+    // Get the base URL, defaulting to the current origin
     const baseUrl = window.location.origin;
     const path = roomId 
-      ? `/api/ical/export/property/${propertyId}/room/${roomId}` 
-      : `/api/ical/export/property/${propertyId}`;
+      ? `/api/ical/export/property/${propertyId}/room/${roomId}.ics` 
+      : `/api/ical/export/property/${propertyId}.ics`;
     
-    // Add a dummy token for demo purposes
-    return `${baseUrl}${path}?token=sample-secure-token-${Date.now()}`;
+    // Add a token for security (in a real app this would be a valid token)
+    const secureToken = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    return `${baseUrl}${path}?token=${secureToken}`;
   }
   
   // Format a date for iCal format
