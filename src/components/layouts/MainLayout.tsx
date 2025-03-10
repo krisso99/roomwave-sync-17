@@ -24,7 +24,11 @@ import {
   Settings, 
   LogOut,
   Sun,
-  Moon
+  Moon,
+  BarChart3,
+  Users,
+  DollarSign,
+  Percent
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -63,6 +67,9 @@ const MainLayout = () => {
     { label: "Bookings", path: "/app/bookings", icon: BookOpen },
     { label: "Calendar", path: "/app/calendar", icon: CalendarDays },
     { label: "Channels", path: "/app/channels", icon: Link2 },
+    { label: "Rates", path: "/app/rates", icon: Percent },
+    { label: "Analytics", path: "/app/analytics", icon: BarChart3 },
+    { label: "Users", path: "/app/users", icon: Users },
     { label: "Settings", path: "/app/settings", icon: Settings },
   ];
 
@@ -150,8 +157,14 @@ const MainLayout = () => {
                  "Dashboard"}
               </h1>
             </div>
-            <div>
-              {/* Header actions would go here */}
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" className="hidden md:flex">
+                <DollarSign className="h-4 w-4 mr-1" />
+                Revenue
+              </Button>
+              <Button variant="outline" size="sm" className="hidden md:flex">
+                Quick Actions
+              </Button>
             </div>
           </header>
           <main className="p-6 h-[calc(100vh-3.5rem)] overflow-y-auto">

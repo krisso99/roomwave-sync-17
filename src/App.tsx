@@ -20,12 +20,14 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 import CheckInOut from "./pages/CheckInOut";
-import RateManagement from "./pages/RateManagement"; // Add new import
+import RateManagement from "./pages/RateManagement";
+import Analytics from "./pages/Analytics";
+import UserManagement from "./pages/UserManagement"; // Add new import
 
 // Context Providers
 import { PlatformIntegrationsProvider } from "./contexts/PlatformIntegrationsContext";
 import { BookingProvider } from "./contexts/BookingContext";
-import { RateProvider } from "./contexts/RateContext"; // Add new import
+import { RateProvider } from "./contexts/RateContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,7 +43,7 @@ const App = () => (
     <TooltipProvider>
       <PlatformIntegrationsProvider>
         <BookingProvider>
-          <RateProvider> {/* Add new provider */}
+          <RateProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
@@ -55,8 +57,10 @@ const App = () => (
                   <Route path="bookings/:id" element={<BookingDetail />} />
                   <Route path="check-in-out" element={<CheckInOut />} />
                   <Route path="channels" element={<Channels />} />
-                  <Route path="rates" element={<RateManagement />} /> {/* Add new route */}
+                  <Route path="rates" element={<RateManagement />} />
                   <Route path="calendar" element={<CalendarView />} />
+                  <Route path="analytics" element={<Analytics />} />
+                  <Route path="users" element={<UserManagement />} />
                   <Route path="settings" element={<Settings />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
