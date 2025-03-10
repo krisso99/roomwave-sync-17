@@ -73,33 +73,42 @@ const RateEditor: React.FC<RateEditorProps> = ({
 }) => {
   const { addRateRule, updateRateRule } = useRates();
   
-  const defaultValues: RateFormValues = rateRule
-    ? {
-        roomTypeId: rateRule.roomTypeId,
-        name: rateRule.name,
-        type: (rateRule.type === 'promotion' ? 'special' : rateRule.type) as 'base' | 'seasonal' | 'special',
-        amount: rateRule.amount,
-        currency: rateRule.currency,
-        startDate: rateRule.startDate ? new Date(rateRule.startDate) : undefined,
-        endDate: rateRule.endDate ? new Date(rateRule.endDate) : undefined,
-        daysOfWeek: rateRule.daysOfWeek?.map(day => day.toString()) || [],
-        minimumStay: rateRule.minimumStay,
-        notes: rateRule.notes,
-        seasonName: rateRule.type === 'seasonal' ? (rateRule as any).seasonName : undefined,
-        eventName: rateRule.type === 'special' ? (rateRule as any).eventName : undefined,
-      }
-    : {
+  const createDefaultValues = (): RateFormValues => {
+    if (!rateRule) {
+      return {
         roomTypeId: roomTypes[0]?.id || '',
         name: '',
-        type: 'base' as const,
+        type: 'base',
         amount: roomTypes[0]?.baseRate || 100,
         currency: 'USD',
         daysOfWeek: [],
       };
+    }
+
+    let formType: 'base' | 'seasonal' | 'special' = 'base';
+    if (rateRule.type === 'seasonal') formType = 'seasonal';
+    else if (rateRule.type === 'special') formType = 'special';
+    else if (rateRule.type === 'promotion') formType = 'special';
+
+    return {
+      roomTypeId: rateRule.roomTypeId,
+      name: rateRule.name,
+      type: formType,
+      amount: rateRule.amount,
+      currency: rateRule.currency,
+      startDate: rateRule.startDate ? new Date(rateRule.startDate) : undefined,
+      endDate: rateRule.endDate ? new Date(rateRule.endDate) : undefined,
+      daysOfWeek: rateRule.daysOfWeek?.map(day => day.toString()) || [],
+      minimumStay: rateRule.minimumStay,
+      notes: rateRule.notes,
+      seasonName: rateRule.type === 'seasonal' ? (rateRule as any).seasonName : undefined,
+      eventName: rateRule.type === 'special' ? (rateRule as any).eventName : undefined,
+    };
+  };
 
   const form = useForm<RateFormValues>({
     resolver: zodResolver(rateFormSchema),
-    defaultValues,
+    defaultValues: createDefaultValues(),
   });
 
   const rateType = form.watch('type');

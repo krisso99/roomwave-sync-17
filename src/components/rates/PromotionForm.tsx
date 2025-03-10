@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { format } from 'date-fns';
-import { Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
-import { RoomType, Channel, Promotion, PromotionStatus, useRates } from '@/contexts/RateContext';
+import { format, addDays } from 'date-fns';
+import { Calendar as CalendarIcon, Percent, DollarSign } from 'lucide-react';
+import { useRates, RoomType, Channel, PromotionStatus } from '@/contexts/RateContext';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -27,14 +27,15 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { toast } from '@/components/ui/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { DateRange } from 'react-day-picker';
 
 interface PromotionFormProps {
-  promotion: Promotion | null;
+  promotion: any | null;
   roomTypes: RoomType[];
   channels: Channel[];
   onSave: () => void;
@@ -43,27 +44,20 @@ interface PromotionFormProps {
 
 const promotionFormSchema = z.object({
   name: z.string().min(1, 'Promotion name is required'),
-  status: z.enum(['active', 'scheduled', 'expired', 'draft']),
-  startDate: z.date({
-    required_error: "Start date is required",
-  }),
-  endDate: z.date({
-    required_error: "End date is required",
+  description: z.string().min(1, 'Description is required'),
+  discountType: z.enum(['percentage', 'fixed']),
+  discountValue: z.coerce.number().positive('Discount value must be greater than 0'),
+  dateRange: z.object({
+    from: z.date(),
+    to: z.date(),
   }),
   minimumStay: z.coerce.number().int().nonnegative().optional(),
   minimumAdvanceBooking: z.coerce.number().int().nonnegative().optional(),
-  description: z.string().min(1, 'Description is required'),
-  discountType: z.enum(['fixed', 'percentage']),
-  discountValue: z.coerce.number().positive('Discount value must be greater than 0'),
-  maxUsage: z.coerce.number().int().nonnegative().optional(),
+  maxUsage: z.coerce.number().int().nonnegative().nullable(),
   promoCode: z.string().optional(),
+  status: z.enum(['active', 'scheduled', 'expired', 'draft']),
   applicableRoomTypes: z.array(z.string()).min(1, 'Select at least one room type'),
   applicableChannels: z.array(z.string()).min(1, 'Select at least one channel'),
-}).refine(data => {
-  return data.endDate >= data.startDate;
-}, {
-  message: "End date cannot be before start date",
-  path: ["endDate"],
 });
 
 type PromotionFormValues = z.infer<typeof promotionFormSchema>;
@@ -77,93 +71,90 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
 }) => {
   const { addPromotion, updatePromotion, generatePromoCode } = useRates();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Set default values for form
-  const defaultValues: Partial<PromotionFormValues> = promotion
-    ? {
-        name: promotion.name,
-        description: promotion.description,
-        status: promotion.status,
-        discountType: promotion.discountType,
-        discountValue: promotion.discountValue,
-        startDate: new Date(promotion.startDate),
-        endDate: new Date(promotion.endDate),
-        minimumStay: promotion.minimumStay,
-        minimumAdvanceBooking: promotion.minimumAdvanceBooking,
-        maxUsage: promotion.maxUsage,
-        promoCode: promotion.promoCode,
-        applicableRoomTypes: promotion.applicableRoomTypes,
-        applicableChannels: promotion.applicableChannels,
-      }
-    : {
+
+  const createDefaultValues = (): PromotionFormValues => {
+    if (!promotion) {
+      return {
         name: '',
         description: '',
-        status: 'draft',
         discountType: 'percentage',
         discountValue: 10,
-        startDate: new Date(),
-        endDate: new Date(new Date().setMonth(new Date().getMonth() + 3)),
-        applicableRoomTypes: [],
-        applicableChannels: ['1'], // Direct channel by default
+        dateRange: {
+          from: new Date(),
+          to: addDays(new Date(), 90),
+        },
+        minimumStay: 0,
+        minimumAdvanceBooking: 0,
+        maxUsage: null,
+        promoCode: '',
+        status: 'active',
+        applicableRoomTypes: roomTypes.map(rt => rt.id),
+        applicableChannels: channels.map(c => c.id),
       };
+    }
+
+    return {
+      name: promotion.name,
+      description: promotion.description,
+      discountType: promotion.discountType,
+      discountValue: promotion.discountValue,
+      dateRange: {
+        from: new Date(promotion.startDate),
+        to: new Date(promotion.endDate),
+      },
+      minimumStay: promotion.minimumStay || 0,
+      minimumAdvanceBooking: promotion.minimumAdvanceBooking || 0,
+      maxUsage: promotion.maxUsage || null,
+      promoCode: promotion.promoCode || '',
+      status: promotion.status,
+      applicableRoomTypes: promotion.applicableRoomTypes,
+      applicableChannels: promotion.applicableChannels,
+    };
+  };
 
   const form = useForm<PromotionFormValues>({
     resolver: zodResolver(promotionFormSchema),
-    defaultValues: defaultValues as PromotionFormValues,
+    defaultValues: createDefaultValues(),
   });
 
-  const onSubmit = async (values: PromotionFormValues) => {
-    setIsSubmitting(true);
-    
-    try {
-      if (promotion) {
-        await updatePromotion(promotion.id, values);
-        toast({
-          title: 'Promotion updated',
-          description: `${values.name} has been successfully updated.`,
-        });
-      } else {
-        // Make sure all required properties are present for a new promotion
-        const newPromotion: Omit<Promotion, 'id' | 'createdAt' | 'lastModified' | 'currentUsage'> = {
-          name: values.name,
-          description: values.description,
-          status: values.status,
-          startDate: values.startDate,
-          endDate: values.endDate,
-          discountType: values.discountType,
-          discountValue: values.discountValue,
-          minimumStay: values.minimumStay,
-          minimumAdvanceBooking: values.minimumAdvanceBooking,
-          maxUsage: values.maxUsage,
-          promoCode: values.promoCode,
-          applicableRoomTypes: values.applicableRoomTypes,
-          applicableChannels: values.applicableChannels,
-        };
-        
-        await addPromotion(newPromotion);
-        toast({
-          title: 'Promotion created',
-          description: `${values.name} has been successfully created.`,
-        });
-      }
-      
-      onSave();
-    } catch (error) {
-      console.error('Error saving promotion:', error);
-      toast({
-        title: 'Error',
-        description: 'An error occurred while saving the promotion.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const discountType = form.watch('discountType');
 
-  // Handle promo code generation
   const handleGeneratePromoCode = () => {
     const code = generatePromoCode();
     form.setValue('promoCode', code);
+  };
+
+  const onSubmit = async (values: PromotionFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const promotionData = {
+        name: values.name,
+        description: values.description,
+        discountType: values.discountType,
+        discountValue: values.discountValue,
+        startDate: values.dateRange.from,
+        endDate: values.dateRange.to,
+        minimumStay: values.minimumStay,
+        minimumAdvanceBooking: values.minimumAdvanceBooking,
+        maxUsage: values.maxUsage,
+        promoCode: values.promoCode,
+        status: values.status,
+        applicableRoomTypes: values.applicableRoomTypes,
+        applicableChannels: values.applicableChannels,
+      };
+
+      if (promotion && promotion.id) {
+        await updatePromotion(promotion.id, promotionData);
+      } else {
+        await addPromotion(promotionData);
+      }
+
+      onSave();
+    } catch (error) {
+      console.error('Error saving promotion:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -197,30 +188,10 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="active">
-                      <div className="flex items-center">
-                        <Badge className="mr-2 bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
-                        <span>Promotion is live</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="scheduled">
-                      <div className="flex items-center">
-                        <Badge className="mr-2 bg-blue-100 text-blue-800 hover:bg-blue-100">Scheduled</Badge>
-                        <span>Will become active on start date</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="expired">
-                      <div className="flex items-center">
-                        <Badge className="mr-2 bg-gray-100 text-gray-800 hover:bg-gray-100">Expired</Badge>
-                        <span>No longer active</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="draft">
-                      <div className="flex items-center">
-                        <Badge className="mr-2 bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Draft</Badge>
-                        <span>Work in progress</span>
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -228,7 +199,7 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
             )}
           />
         </div>
-        
+
         <FormField
           control={form.control}
           name="description"
@@ -237,135 +208,52 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
               <FormLabel>Description</FormLabel>
               <FormControl>
                 <Textarea 
-                  placeholder="Describe the promotion..."
-                  {...field}
+                  placeholder="Describe this promotion for internal reference" 
+                  {...field} 
                 />
               </FormControl>
-              <FormDescription>
-                This will be displayed to guests
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="startDate"
+            name="discountType"
             render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Start Date</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+              <FormItem className="space-y-1">
+                <FormLabel>Discount Type</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className="flex gap-4"
+                  >
+                    <FormItem className="flex items-center space-x-2 space-y-0">
+                      <FormControl>
+                        <RadioGroupItem value="percentage" />
+                      </FormControl>
+                      <FormLabel className="font-normal flex items-center">
+                        <Percent className="h-4 w-4 mr-1" />
+                        Percentage
+                      </FormLabel>
+                    </FormItem>
+                    <FormItem className="flex items-center space-x-2 space-y-0">
+                      <FormControl>
+                        <RadioGroupItem value="fixed" />
+                      </FormControl>
+                      <FormLabel className="font-normal flex items-center">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Fixed Amount
+                      </FormLabel>
+                    </FormItem>
+                  </RadioGroup>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
-          <FormField
-            control={form.control}
-            name="endDate"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>End Date</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <FormField
-              control={form.control}
-              name="discountType"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Discount Type</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="percentage" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Percentage Discount (%)
-                        </FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="fixed" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Fixed Amount ($)
-                        </FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
           
           <FormField
             control={form.control}
@@ -376,24 +264,78 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                 <FormControl>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2">
-                      {form.watch('discountType') === 'percentage' ? '%' : '$'}
+                      {discountType === 'percentage' ? '%' : '$'}
                     </span>
                     <Input 
                       type="number" 
-                      min="0.01" 
-                      step={form.watch('discountType') === 'percentage' ? '1' : '0.01'} 
-                      className="pl-7"
-                      {...field}
+                      min="0" 
+                      step={discountType === 'percentage' ? '1' : '0.01'} 
+                      className="pl-7" 
+                      {...field} 
                     />
                   </div>
                 </FormControl>
+                <FormDescription>
+                  {discountType === 'percentage' 
+                    ? 'Enter percentage discount (e.g. 10 for 10% off)' 
+                    : 'Enter fixed amount discount (e.g. 20 for $20 off)'}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        <FormField
+          control={form.control}
+          name="dateRange"
+          render={({ field }) => (
+            <FormItem className="flex flex-col">
+              <FormLabel>Valid Date Range</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value?.from ? (
+                        field.value.to ? (
+                          <>
+                            {format(field.value.from, "PPP")} - {format(field.value.to, "PPP")}
+                          </>
+                        ) : (
+                          format(field.value.from, "PPP")
+                        )
+                      ) : (
+                        <span>Select date range</span>
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={field.value as DateRange}
+                    onSelect={field.onChange}
+                    initialFocus
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+              <FormDescription>
+                The period during which this promotion is valid
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="minimumStay"
@@ -404,7 +346,7 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
                   <Input type="number" min="0" step="1" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Optional, leave empty for no minimum
+                  Minimum nights required (0 for no minimum)
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -416,110 +358,42 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
             name="minimumAdvanceBooking"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Advance Booking (Days)</FormLabel>
+                <FormLabel>Minimum Advance Booking (Days)</FormLabel>
                 <FormControl>
                   <Input type="number" min="0" step="1" {...field} />
                 </FormControl>
                 <FormDescription>
-                  How many days in advance booking is required
+                  Days in advance booking must be made (0 for no minimum)
                 </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="maxUsage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Maximum Uses</FormLabel>
+                <FormLabel>Usage Limit</FormLabel>
                 <FormControl>
-                  <Input type="number" min="0" step="1" {...field} />
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    step="1" 
+                    placeholder="No limit"
+                    value={field.value === null ? '' : field.value}
+                    onChange={(e) => {
+                      const value = e.target.value === '' ? null : parseInt(e.target.value);
+                      field.onChange(value);
+                    }}
+                  />
                 </FormControl>
                 <FormDescription>
-                  Leave empty for unlimited uses
+                  Maximum number of times this promotion can be used (leave empty for unlimited)
                 </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="promoCode"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Promo Code</FormLabel>
-              <div className="flex space-x-2">
-                <FormControl>
-                  <Input placeholder="e.g. SUMMER23" {...field} />
-                </FormControl>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGeneratePromoCode}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate
-                </Button>
-              </div>
-              <FormDescription>
-                Optional code that guests need to enter to redeem this promotion
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <FormField
-            control={form.control}
-            name="applicableRoomTypes"
-            render={() => (
-              <FormItem>
-                <div className="mb-4">
-                  <FormLabel className="text-base">Applicable Room Types</FormLabel>
-                  <FormDescription>
-                    Select room types this promotion applies to
-                  </FormDescription>
-                </div>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                  {roomTypes.map((roomType) => (
-                    <FormField
-                      key={roomType.id}
-                      control={form.control}
-                      name="applicableRoomTypes"
-                      render={({ field }) => {
-                        return (
-                          <FormItem
-                            key={roomType.id}
-                            className="flex flex-row items-start space-x-3 space-y-0"
-                          >
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(roomType.id)}
-                                onCheckedChange={(checked) => {
-                                  return checked
-                                    ? field.onChange([...field.value, roomType.id])
-                                    : field.onChange(
-                                        field.value?.filter(
-                                          (value) => value !== roomType.id
-                                        )
-                                      );
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal">
-                              {roomType.name}
-                            </FormLabel>
-                          </FormItem>
-                        );
-                      }}
-                    />
-                  ))}
-                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -527,67 +401,142 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
           
           <FormField
             control={form.control}
-            name="applicableChannels"
-            render={() => (
+            name="promoCode"
+            render={({ field }) => (
               <FormItem>
-                <div className="mb-4">
-                  <FormLabel className="text-base">Distribution Channels</FormLabel>
-                  <FormDescription>
-                    Select channels this promotion is available on
-                  </FormDescription>
-                </div>
-                <div className="space-y-2">
-                  {channels.map((channel) => (
-                    <FormField
-                      key={channel.id}
-                      control={form.control}
-                      name="applicableChannels"
-                      render={({ field }) => {
-                        return (
-                          <FormItem
-                            key={channel.id}
-                            className="flex flex-row items-start space-x-3 space-y-0"
-                          >
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(channel.id)}
-                                onCheckedChange={(checked) => {
-                                  return checked
-                                    ? field.onChange([...field.value, channel.id])
-                                    : field.onChange(
-                                        field.value?.filter(
-                                          (value) => value !== channel.id
-                                        )
-                                      );
-                                }}
-                              />
-                            </FormControl>
-                            <FormLabel className="font-normal">
-                              {channel.name}
-                            </FormLabel>
-                          </FormItem>
-                        );
-                      }}
+                <FormLabel>Promo Code</FormLabel>
+                <div className="flex gap-2">
+                  <FormControl>
+                    <Input 
+                      placeholder="Optional code to apply promotion" 
+                      {...field} 
                     />
-                  ))}
+                  </FormControl>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleGeneratePromoCode}
+                  >
+                    Generate
+                  </Button>
                 </div>
+                <FormDescription>
+                  Code customers need to enter (leave empty for automatic application)
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="applicableRoomTypes"
+          render={() => (
+            <FormItem>
+              <div className="mb-4">
+                <FormLabel className="text-base">Applicable Room Types</FormLabel>
+                <FormDescription>
+                  Select which room types this promotion applies to
+                </FormDescription>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {roomTypes.map((roomType) => (
+                  <FormField
+                    key={roomType.id}
+                    control={form.control}
+                    name="applicableRoomTypes"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={roomType.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(roomType.id)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([...field.value, roomType.id])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== roomType.id
+                                      )
+                                    );
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            {roomType.name}
+                          </FormLabel>
+                        </FormItem>
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="applicableChannels"
+          render={() => (
+            <FormItem>
+              <div className="mb-4">
+                <FormLabel className="text-base">Applicable Channels</FormLabel>
+                <FormDescription>
+                  Select which booking channels this promotion applies to
+                </FormDescription>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {channels.map((channel) => (
+                  <FormField
+                    key={channel.id}
+                    control={form.control}
+                    name="applicableChannels"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={channel.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(channel.id)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([...field.value, channel.id])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value) => value !== channel.id
+                                      )
+                                    );
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal">
+                            {channel.name}
+                          </FormLabel>
+                        </FormItem>
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         
-        <div className="flex justify-end space-x-2 pt-4">
+        <div className="flex justify-end space-x-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting 
-              ? 'Saving...' 
-              : promotion 
-                ? 'Update Promotion' 
-                : 'Create Promotion'
-            }
+            {isSubmitting ? 'Saving...' : (promotion ? 'Update Promotion' : 'Create Promotion')}
           </Button>
         </div>
       </form>

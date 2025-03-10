@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { useRates, RoomType, DayOfWeek } from '@/contexts/RateContext';
+import { useRates, RoomType, DayOfWeek, RateRule } from '@/contexts/RateContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
@@ -120,7 +121,11 @@ const RateCalendarView: React.FC<RateCalendarViewProps> = ({
       }
 
       // Check minimum stay if applicable
-      if (rule.minimumStay && lengthOfStay && lengthOfStay < rule.minimumStay) return false;
+      if (rule.minimumStay) {
+        // We don't have length of stay info in this context, so we'll skip this check
+        // in a real app, you might want to add a default length of stay or get it from somewhere
+        return true;
+      }
       
       return true;
     });

@@ -1,19 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { format, eachDayOfInterval, isEqual, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { RoomType, Channel, useRates } from '@/contexts/RateContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { AlertTriangle, Edit, Percent, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Edit, ExternalLink, Check, X, AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ChannelRatesTableProps {
   roomTypes: RoomType[];
@@ -26,395 +23,297 @@ const ChannelRatesTable: React.FC<ChannelRatesTableProps> = ({
   channels,
   dateRange,
 }) => {
-  const { previewRate, updateChannelRateMapping, channelRateMappings } = useRates();
-  const [selectedRoomType, setSelectedRoomType] = useState<string>(roomTypes[0]?.id || '');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(dateRange?.from || new Date());
-  const [isLoading, setIsLoading] = useState(false);
-  const [rateData, setRateData] = useState<Record<string, { finalAmount: number; baseAmount: number; parity: boolean }>>({});
-  const [editMode, setEditMode] = useState<{ channelId: string; markup: number; isPercentage: boolean } | null>(null);
+  const { channelRateMappings, updateChannelRateMapping, previewRate } = useRates();
   
-  // Load rate data for selected room type and date
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [editMapping, setEditMapping] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ markup: number; isMarkupPercentage: boolean }>({
+    markup: 0,
+    isMarkupPercentage: true,
+  });
+  const [rateData, setRateData] = useState<Record<string, Record<string, number>>>({});
+  const [loading, setLoading] = useState(true);
+  
+  // Set selected date to the start of date range if available
+  useEffect(() => {
+    if (dateRange?.from) {
+      setSelectedDate(dateRange.from);
+    }
+  }, [dateRange]);
+  
+  // Load rate data for the selected date
   useEffect(() => {
     const loadRateData = async () => {
-      if (!selectedRoomType || !selectedDate) return;
-      
-      setIsLoading(true);
-      
-      try {
-        const data: Record<string, { finalAmount: number; baseAmount: number; parity: boolean }> = {};
-        
-        // Get direct channel rate as baseline
-        const directRate = await previewRate(selectedRoomType, selectedDate, '1');
-        data['1'] = { ...directRate, parity: true };
-        
-        // Get rates for other channels
-        for (const channel of channels) {
-          if (channel.id === '1') continue; // Skip direct channel
-          
-          const channelRate = await previewRate(selectedRoomType, selectedDate, channel.id);
-          
-          // Check rate parity
-          const parity = Math.abs(channelRate.finalAmount - directRate.finalAmount) < 0.01;
-          
-          data[channel.id] = {
-            ...channelRate,
-            parity,
-          };
-        }
-        
-        setRateData(data);
-      } catch (error) {
-        console.error('Error loading channel rates:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load channel rates',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
+      if (!roomTypes.length || !channels.length) {
+        setRateData({});
+        setLoading(false);
+        return;
       }
+      
+      setLoading(true);
+      
+      const data: Record<string, Record<string, number>> = {};
+      
+      for (const roomType of roomTypes) {
+        data[roomType.id] = {};
+        
+        for (const channel of channels) {
+          try {
+            const result = await previewRate(roomType.id, selectedDate, channel.id);
+            data[roomType.id][channel.id] = result.finalAmount;
+          } catch (error) {
+            console.error(`Error loading rate for ${roomType.id} on channel ${channel.id}:`, error);
+            data[roomType.id][channel.id] = 0;
+          }
+        }
+      }
+      
+      setRateData(data);
+      setLoading(false);
     };
     
     loadRateData();
-  }, [selectedRoomType, selectedDate, channels, previewRate]);
+  }, [roomTypes, channels, selectedDate, previewRate]);
   
-  // Handle room type change
-  const handleRoomTypeChange = (value: string) => {
-    setSelectedRoomType(value);
+  const handleDateChange = (date: string) => {
+    setSelectedDate(new Date(date));
   };
   
-  // Handle date change
-  const handleDateChange = (date: Date | undefined) => {
-    if (date) {
-      setSelectedDate(date);
-    }
-  };
-  
-  // Start editing a channel markup
-  const handleStartEdit = (channelId: string) => {
-    const mapping = channelRateMappings.find(
-      m => m.channelId === channelId && 
-      m.rateRuleId.includes(selectedRoomType)
-    );
-    
-    setEditMode({
-      channelId,
-      markup: mapping?.markup || 0,
-      isPercentage: mapping?.isMarkupPercentage !== false,
+  const startEditing = (mapping: any) => {
+    setEditMapping(mapping.id);
+    setEditValues({
+      markup: mapping.markup,
+      isMarkupPercentage: mapping.isMarkupPercentage,
     });
   };
   
-  // Save channel markup
-  const handleSaveMarkup = async () => {
-    if (!editMode) return;
-    
+  const cancelEditing = () => {
+    setEditMapping(null);
+  };
+  
+  const saveEditing = async (mappingId: string) => {
     try {
-      const { channelId, markup, isPercentage } = editMode;
-      
-      // Find existing mapping or create new mapping ID
-      const existingMapping = channelRateMappings.find(
-        m => m.channelId === channelId && 
-        m.rateRuleId.includes(selectedRoomType)
-      );
-      
-      const mappingId = existingMapping?.id || `${selectedRoomType}-${channelId}-${Date.now()}`;
-      
-      await updateChannelRateMapping(mappingId, {
-        channelId,
-        channelName: channels.find(c => c.id === channelId)?.name || 'Unknown',
-        rateRuleId: selectedRoomType,
-        markup,
-        isMarkupPercentage: isPercentage,
-        isEnabled: true,
-        lastSynced: new Date(),
-      });
-      
-      // Reset edit mode
-      setEditMode(null);
-      
-      // Reload rates
-      const updatedData = { ...rateData };
-      const directRate = updatedData['1'];
-      
-      // Update the rate for this channel
-      const channelRate = await previewRate(selectedRoomType, selectedDate as Date, channelId);
-      const parity = Math.abs(channelRate.finalAmount - directRate.finalAmount) < 0.01;
-      
-      updatedData[channelId] = {
-        ...channelRate,
-        parity,
-      };
-      
-      setRateData(updatedData);
-      
+      await updateChannelRateMapping(mappingId, editValues);
+      setEditMapping(null);
       toast({
-        title: 'Markup updated',
-        description: 'Channel rates have been updated successfully',
+        title: 'Channel rate updated',
+        description: 'The rate adjustment has been saved.',
       });
     } catch (error) {
-      console.error('Error updating channel markup:', error);
+      console.error('Error updating channel rate:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to update channel markup',
+        title: 'Update failed',
+        description: 'There was an error updating the channel rate.',
         variant: 'destructive',
       });
     }
   };
   
-  // Cancel editing
-  const handleCancelEdit = () => {
-    setEditMode(null);
+  // Generate available dates from dateRange
+  const availableDates = () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return [new Date()];
+    }
+    
+    const dates: Date[] = [];
+    let currentDate = new Date(dateRange.from);
+    const endDate = new Date(dateRange.to);
+    
+    while (currentDate <= endDate) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
   };
   
-  // Room type object
-  const roomType = roomTypes.find(rt => rt.id === selectedRoomType);
+  // Check if there's a rate parity issue
+  const checkRateParity = (roomTypeId: string) => {
+    if (!rateData[roomTypeId]) return false;
+    
+    const rates = Object.values(rateData[roomTypeId]);
+    const validRates = rates.filter(rate => rate > 0);
+    
+    if (validRates.length <= 1) return false;
+    
+    const minRate = Math.min(...validRates);
+    const maxRate = Math.max(...validRates);
+    
+    // If rates differ by more than 2%, flag it
+    return maxRate > minRate * 1.02;
+  };
   
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="room-type">Room Type</Label>
-          <Select
-            value={selectedRoomType}
-            onValueChange={handleRoomTypeChange}
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row justify-between gap-4">
+        <div className="w-full md:w-auto">
+          <label className="text-sm font-medium">Select Date</label>
+          <Select 
+            value={selectedDate.toISOString().split('T')[0]}
+            onValueChange={handleDateChange}
           >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a room type" />
+            <SelectTrigger className="w-full md:w-[240px]">
+              <SelectValue placeholder="Select date" />
             </SelectTrigger>
             <SelectContent>
-              {roomTypes.map(rt => (
-                <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
+              {availableDates().map(date => (
+                <SelectItem key={date.toISOString()} value={date.toISOString().split('T')[0]}>
+                  {format(date, 'EEEE, MMM d, yyyy')}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        
-        <div>
-          <Label htmlFor="date">Date</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-                id="date"
-              >
-                {selectedDate ? (
-                  format(selectedDate, 'PPP')
-                ) : (
-                  <span>Pick a date</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <div className="p-3">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Navigate to date</h4>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleDateChange(new Date())}
-                    >
-                      Today
-                    </Button>
-                    {dateRange?.from && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDateChange(dateRange.from)}
-                      >
-                        Start Date
-                      </Button>
-                    )}
-                    {dateRange?.to && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDateChange(dateRange.to)}
-                      >
-                        End Date
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => selectedDate && handleDateChange(addDays(selectedDate, -1))}
-                    className="mr-1"
-                  >
-                    Prev
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => selectedDate && handleDateChange(addDays(selectedDate, 1))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+      </div>
+      
+      {loading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-[300px] w-full" />
         </div>
-      </div>
-      
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Channel</TableHead>
-              <TableHead>Base Rate</TableHead>
-              <TableHead>Markup</TableHead>
-              <TableHead>Final Rate</TableHead>
-              <TableHead>Parity</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6}>
-                  <div className="flex justify-center py-4">
-                    <Skeleton className="h-8 w-full max-w-md" />
-                  </div>
-                </TableCell>
+                <TableHead className="w-[180px]">Room Type</TableHead>
+                {channels.map(channel => (
+                  <TableHead key={channel.id} className="text-center min-w-[160px]">
+                    {channel.name}
+                    {channel.commission > 0 && (
+                      <span className="block text-xs font-normal">
+                        ({channel.commission}% commission)
+                      </span>
+                    )}
+                  </TableHead>
+                ))}
+                <TableHead className="text-center">Status</TableHead>
               </TableRow>
-            ) : (
-              channels.map(channel => {
-                const data = rateData[channel.id];
-                const isDirectChannel = channel.id === '1';
-                const isEditing = editMode?.channelId === channel.id;
-                
-                // Find the channel mapping for this room and channel
-                const mapping = channelRateMappings.find(
-                  m => m.channelId === channel.id && 
-                  m.rateRuleId.includes(selectedRoomType)
-                );
-                
-                return (
-                  <TableRow key={channel.id}>
-                    <TableCell>
-                      <div className="font-medium">{channel.name}</div>
-                      {!isDirectChannel && (
-                        <div className="text-xs text-muted-foreground">
-                          Commission: {channel.commission}%
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      ${data?.baseAmount.toFixed(2) || '-'}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <div className="flex items-center space-x-2">
-                          <Input
-                            type="number"
-                            value={editMode.markup}
-                            onChange={e => setEditMode({
-                              ...editMode,
-                              markup: parseFloat(e.target.value) || 0,
-                            })}
-                            className="w-20"
-                          />
-                          <Select
-                            value={editMode.isPercentage ? 'percentage' : 'fixed'}
-                            onValueChange={value => setEditMode({
-                              ...editMode,
-                              isPercentage: value === 'percentage',
-                            })}
-                          >
-                            <SelectTrigger className="w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="percentage">%</SelectItem>
-                              <SelectItem value="fixed">$</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ) : (
-                        <>
-                          {isDirectChannel ? (
-                            <span className="text-muted-foreground">N/A</span>
-                          ) : (
-                            mapping ? (
-                              <span>
-                                {mapping.markup}{mapping.isMarkupPercentage ? '%' : '$'}
-                              </span>
-                            ) : (
-                              <span>Default ({channel.commission}%)</span>
-                            )
-                          )}
-                        </>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      ${data?.finalAmount.toFixed(2) || '-'}
-                    </TableCell>
-                    <TableCell>
-                      {isDirectChannel ? (
-                        <Badge variant="outline">Base</Badge>
-                      ) : (
-                        data?.parity ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            <Check className="h-3 w-3 mr-1" /> Parity
-                          </Badge>
+            </TableHeader>
+            <TableBody>
+              {roomTypes.map(roomType => (
+                <TableRow key={roomType.id}>
+                  <TableCell className="font-medium">
+                    {roomType.name}
+                    <div className="text-xs text-muted-foreground">
+                      Base: ${roomType.baseRate}
+                    </div>
+                  </TableCell>
+                  
+                  {channels.map(channel => {
+                    const rate = rateData[roomType.id]?.[channel.id] || 0;
+                    const mapping = channelRateMappings.find(
+                      m => m.rateRuleId.includes(roomType.id) && m.channelId === channel.id
+                    );
+                    
+                    return (
+                      <TableCell key={channel.id} className="text-center">
+                        {rate > 0 ? (
+                          <div className="font-semibold">${rate.toFixed(2)}</div>
                         ) : (
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                            <AlertTriangle className="h-3 w-3 mr-1" /> Disparity
-                          </Badge>
-                        )
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <div className="flex space-x-1">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={handleSaveMarkup}
-                          >
-                            Save
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={handleCancelEdit}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      ) : (
-                        !isDirectChannel && (
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => handleStartEdit(channel.id)}
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                        )
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                          <div className="text-muted-foreground">N/A</div>
+                        )}
+                        
+                        {mapping && (
+                          <div className="mt-2">
+                            {editMapping === mapping.id ? (
+                              <div className="flex flex-col gap-2">
+                                <div className="flex gap-1">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step={editValues.isMarkupPercentage ? '1' : '0.01'}
+                                    value={editValues.markup}
+                                    onChange={(e) => setEditValues({
+                                      ...editValues,
+                                      markup: parseFloat(e.target.value),
+                                    })}
+                                    className="w-20 h-8 text-xs"
+                                  />
+                                  <Select
+                                    value={editValues.isMarkupPercentage ? 'percent' : 'fixed'}
+                                    onValueChange={(v) => setEditValues({
+                                      ...editValues,
+                                      isMarkupPercentage: v === 'percent',
+                                    })}
+                                  >
+                                    <SelectTrigger className="w-20 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="percent">%</SelectItem>
+                                      <SelectItem value="fixed">$</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex justify-center gap-1">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => saveEditing(mapping.id)}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={cancelEditing}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs space-y-1">
+                                <Badge variant="outline" className="font-normal">
+                                  {mapping.isMarkupPercentage
+                                    ? `+${mapping.markup}%`
+                                    : `+$${mapping.markup}`}
+                                </Badge>
+                                <div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2"
+                                    onClick={() => startEditing(mapping)}
+                                  >
+                                    <Edit className="h-3 w-3 mr-1" />
+                                    <span className="text-xs">Edit</span>
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  
+                  <TableCell className="text-center">
+                    {checkRateParity(roomType.id) ? (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Parity Issue
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-emerald-600 bg-emerald-50">
+                        In Parity
+                      </Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       
-      <div className="bg-muted rounded-md p-4">
-        <h3 className="text-sm font-medium mb-2">About Channel Rates</h3>
-        <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-          <li>Direct channel is your base rate without markups or commissions</li>
-          <li>Other channels can have custom markups (fixed amount or percentage)</li>
-          <li>Default markup is based on the channel's standard commission rate</li>
-          <li>Rate parity means prices are consistent across channels</li>
-        </ul>
+      <div className="text-sm text-muted-foreground">
+        <p>
+          <span className="font-semibold">Note:</span> Channel rates shown are the final rates that will be displayed to guests on each platform.
+        </p>
       </div>
     </div>
   );
