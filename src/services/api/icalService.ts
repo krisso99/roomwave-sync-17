@@ -427,27 +427,21 @@ export class ICalService {
   // Generate a unique export URL for a property or room
   generateExportUrl(propertyId: string, roomId?: string): string {
     try {
-      // For development/demo purposes - generate a hosted URL that can be accessed directly
-      // This is necessary for external platforms to validate the iCal feed
+      // Create a direct URL to our static iCal file
+      const baseUrl = this.getBaseUrl();
+      let url = `${baseUrl}/api/ical/sample.ics`;
       
-      // Create an encoded identifier for the feed (Base64 encode the property/room info)
-      const resourceInfo = {
-        propertyId,
-        roomId: roomId || null,
-        timestamp: Date.now()
-      };
+      // For a real implementation where we can dynamically generate iCal content
+      // based on property and room, use:
+      // let url = `${baseUrl}/api/ical/generate.js?propertyId=${encodeURIComponent(propertyId)}`;
+      // if (roomId) {
+      //   url += `&roomId=${encodeURIComponent(roomId)}`;
+      // }
       
-      const resourceIdEncoded = btoa(JSON.stringify(resourceInfo))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-      
-      // Generate a direct URL to our API endpoint
-      // This needs to be a publicly accessible endpoint that returns valid iCal data
-      return `${this.getBaseUrl()}/api/ical/${resourceIdEncoded}.ics`;
+      return url;
     } catch (error) {
       console.error("Error generating iCal URL:", error);
-      return `${this.getBaseUrl()}/api/ical/error.ics`;
+      return `${this.getBaseUrl()}/api/ical/sample.ics`;
     }
   }
   
