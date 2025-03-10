@@ -155,29 +155,8 @@ const RateManagement: React.FC = () => {
             Channel Rates
           </TabsTrigger>
         </TabsList>
-      </Tabs>
-      
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Room Type Filter */}
-        <RoomTypeFilters
-          roomTypes={roomTypes}
-          selectedRoomTypes={selectedRoomTypes}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onRoomTypeToggle={handleRoomTypeToggle}
-          onCreateRate={handleCreateRate}
-        />
         
-        {/* Date Range Filter */}
-        <DateRangeFilterCard
-          dateRange={dateRange}
-          onDateRangeChange={handleDateRangeChange}
-        />
-      </div>
-      
-      {/* Tab Contents */}
-      <div className="mt-6">
+        {/* Tab Contents */}
         <TabsContent value="calendar">
           <CalendarTabContent
             roomTypes={activeRoomTypes}
@@ -211,6 +190,25 @@ const RateManagement: React.FC = () => {
             dateRange={dateRange}
           />
         </TabsContent>
+      </Tabs>
+      
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Room Type Filter */}
+        <RoomTypeFilters
+          roomTypes={roomTypes}
+          selectedRoomTypes={selectedRoomTypes}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onRoomTypeToggle={handleRoomTypeToggle}
+          onCreateRate={handleCreateRate}
+        />
+        
+        {/* Date Range Filter */}
+        <DateRangeFilterCard
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+        />
       </div>
       
       {/* Dialogs */}
