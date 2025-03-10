@@ -19,6 +19,9 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Index from "./pages/Index";
 
+// Context Providers
+import { PlatformIntegrationsProvider } from "./contexts/PlatformIntegrationsContext";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -31,23 +34,25 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/app" element={<MainLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="properties" element={<Properties />} />
-            <Route path="properties/:id" element={<PropertyDetail />} />
-            <Route path="bookings" element={<Bookings />} />
-            <Route path="channels" element={<Channels />} />
-            <Route path="calendar" element={<CalendarView />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <PlatformIntegrationsProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/app" element={<MainLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="properties" element={<Properties />} />
+              <Route path="properties/:id" element={<PropertyDetail />} />
+              <Route path="bookings" element={<Bookings />} />
+              <Route path="channels" element={<Channels />} />
+              <Route path="calendar" element={<CalendarView />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </PlatformIntegrationsProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
