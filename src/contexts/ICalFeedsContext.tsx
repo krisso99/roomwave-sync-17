@@ -380,7 +380,7 @@ export const ICalFeedsProvider: React.FC<{ children: ReactNode; propertyId?: str
     }
   };
   
-  const generateExportUrl = (propertyId: string, roomId?: string) => {
+  const generateExportUrl = (propertyId: string, roomId?: string): string => {
     return icalService.generateExportUrl(propertyId, roomId);
   };
   

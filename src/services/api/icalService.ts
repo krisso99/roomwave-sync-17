@@ -431,18 +431,18 @@ export class ICalService {
       ? window.location.origin 
       : 'https://app.riadsync.com';
       
-    // Create a secure token for the URL
-    const secureToken = this.generateSecureToken(propertyId, roomId);
+    // Create a simple identifier for the feed
+    const resourceId = roomId 
+      ? `${propertyId}-room-${roomId}` 
+      : propertyId;
     
-    // Format the path for the iCal file - use a clean file path format
-    // Airbnb and other platforms expect a path ending with .ics
-    const path = roomId 
-      ? `/ical/export/${propertyId}/room/${roomId}.ics` 
-      : `/ical/export/${propertyId}.ics`;
+    // Generate a simple token (avoid special characters)
+    const timestamp = Date.now().toString(36).slice(-6);
+    const token = `t${timestamp}`;
     
-    // Return a simplified URL format that ends with .ics
-    // Avoid complex query parameters - many platforms don't handle them well
-    return `${baseUrl}${path}?token=${secureToken}`;
+    // Create a clean filename-style path ending with .ics extension
+    // This format is widely accepted by calendar applications
+    return `${baseUrl}/calendar/${resourceId}/${token}.ics`;
   }
   
   // Generate a secure token for the export URL
