@@ -4,27 +4,18 @@ import { format, addDays, isEqual } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { useRates, RoomType, RateRule, Channel, Promotion } from '@/contexts/RateContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DateRangePickerInline } from '@/components/ui/date-range-picker-inline';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Calendar, CalendarDays, Copy, DollarSign, Edit, Euro, Gift, Layers, List, Percent, Plus, Receipt, RefreshCw, Tag, Trash2, History } from 'lucide-react';
+import { Calendar, List, Tag, Receipt } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import RateCalendarView from '@/components/rates/RateCalendarView';
-import RateEditor from '@/components/rates/RateEditor';
-import PromotionForm from '@/components/rates/PromotionForm';
-import RateHistoryLog from '@/components/rates/RateHistoryLog';
-import ChannelRatesTable from '@/components/rates/ChannelRatesTable';
-import BulkRateUpdate from '@/components/rates/BulkRateUpdate';
+
+// Import refactored components
+import RateManagementHeader from '@/components/rates/RateManagementHeader';
+import RoomTypeFilters from '@/components/rates/RoomTypeFilters';
+import DateRangeFilterCard from '@/components/rates/DateRangeFilterCard';
+import CalendarTabContent from '@/components/rates/CalendarTabContent';
+import RateListTabContent from '@/components/rates/RateListTabContent';
+import PromotionsTabContent from '@/components/rates/PromotionsTabContent';
+import ChannelRatesTabContent from '@/components/rates/ChannelRatesTabContent';
+import RateDialogs from '@/components/rates/RateDialogs';
 
 const RateManagement: React.FC = () => {
   // Get rates context
@@ -33,8 +24,6 @@ const RateManagement: React.FC = () => {
     channels, 
     rateRules, 
     promotions,
-    addRateRule,
-    updateRateRule,
     deleteRateRule,
     checkRateParity
   } = useRates();
@@ -68,11 +57,6 @@ const RateManagement: React.FC = () => {
         return [...prev, roomTypeId];
       }
     });
-  };
-  
-  // Handle channel selection
-  const handleChannelChange = (channelId: string) => {
-    setSelectedChannel(channelId);
   };
   
   // Handle date range change
@@ -136,11 +120,6 @@ const RateManagement: React.FC = () => {
     }
   };
   
-  // Filter room types based on search
-  const filteredRoomTypes = roomTypes.filter(roomType => 
-    roomType.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  
   // Get active room types (either selected or all if none selected)
   const activeRoomTypes = selectedRoomTypes.length > 0 
     ? roomTypes.filter(rt => selectedRoomTypes.includes(rt.id))
@@ -148,28 +127,13 @@ const RateManagement: React.FC = () => {
   
   return (
     <div className="animate-fade-in space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-2xl font-display font-bold">Rate Management</h1>
-        
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsBulkUpdateOpen(true)}>
-            <Layers className="mr-2 h-4 w-4" />
-            Bulk Update
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCheckRateParity}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Check Parity
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsHistoryLogOpen(true)}>
-            <History className="mr-2 h-4 w-4" />
-            Rate History
-          </Button>
-          <Button onClick={() => handleEditPromotion(null)}>
-            <Gift className="mr-2 h-4 w-4" />
-            New Promotion
-          </Button>
-        </div>
-      </div>
+      {/* Header with action buttons */}
+      <RateManagementHeader 
+        onBulkUpdateOpen={() => setIsBulkUpdateOpen(true)}
+        onCheckRateParity={handleCheckRateParity}
+        onHistoryLogOpen={() => setIsHistoryLogOpen(true)}
+        onNewPromotion={() => handleEditPromotion(null)}
+      />
       
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -196,359 +160,76 @@ const RateManagement: React.FC = () => {
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Room Type Filter */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Room Types</CardTitle>
-            <CardDescription>
-              Select room types to view or edit rates
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="relative">
-                <Input
-                  placeholder="Search room types..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="mb-2"
-                />
-              </div>
-              <div className="max-h-[200px] overflow-y-auto space-y-1">
-                {filteredRoomTypes.length > 0 ? (
-                  filteredRoomTypes.map((roomType) => (
-                    <div key={roomType.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={`room-${roomType.id}`}
-                        checked={selectedRoomTypes.includes(roomType.id)}
-                        onChange={() => handleRoomTypeToggle(roomType.id)}
-                        className="rounded border-gray-300"
-                      />
-                      <label 
-                        htmlFor={`room-${roomType.id}`}
-                        className="flex-1 text-sm cursor-pointer"
-                      >
-                        {roomType.name}
-                      </label>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        onClick={() => handleCreateRate(roomType.id)}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground py-2">
-                    No room types match your search
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <RoomTypeFilters
+          roomTypes={roomTypes}
+          selectedRoomTypes={selectedRoomTypes}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onRoomTypeToggle={handleRoomTypeToggle}
+          onCreateRate={handleCreateRate}
+        />
         
         {/* Date Range Filter */}
-        <Card className="col-span-1 md:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Date Range</CardTitle>
-            <CardDescription>
-              Select a date range for rate management
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center space-x-2 text-sm">
-                <span className="font-medium">From:</span>
-                <span>
-                  {dateRange?.from ? format(dateRange.from, 'PPP') : 'Select start date'}
-                </span>
-                <span className="font-medium ml-4">To:</span>
-                <span>
-                  {dateRange?.to ? format(dateRange.to, 'PPP') : 'Select end date'}
-                </span>
-              </div>
-              
-              <DateRangePickerInline
-                dateRange={dateRange}
-                onDateRangeChange={handleDateRangeChange}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <DateRangeFilterCard
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+        />
       </div>
       
       {/* Tab Contents */}
       <div className="mt-6">
-        {activeTab === 'calendar' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Rate Calendar</CardTitle>
-              <CardDescription>
-                Visual calendar view of rates for selected room types
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RateCalendarView
-                roomTypes={activeRoomTypes}
-                dateRange={dateRange}
-                selectedChannel={selectedChannel}
-                onEditRate={handleEditRate}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <TabsContent value="calendar">
+          <CalendarTabContent
+            roomTypes={activeRoomTypes}
+            dateRange={dateRange}
+            selectedChannel={selectedChannel}
+            onEditRate={handleEditRate}
+          />
+        </TabsContent>
         
-        {activeTab === 'list' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Rate List</CardTitle>
-              <CardDescription>
-                Detailed list of all rate rules
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Room Type</TableHead>
-                      <TableHead>Rate Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rateRules.filter(rule => 
-                      (selectedRoomTypes.length === 0 || selectedRoomTypes.includes(rule.roomTypeId))
-                    ).map(rule => {
-                      const roomType = roomTypes.find(rt => rt.id === rule.roomTypeId);
-                      
-                      return (
-                        <TableRow key={rule.id}>
-                          <TableCell>{roomType?.name || 'Unknown'}</TableCell>
-                          <TableCell>{rule.name}</TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              rule.type === 'special' ? 'destructive' : 
-                              rule.type === 'seasonal' ? 'default' : 
-                              'outline'
-                            }>
-                              {rule.type.charAt(0).toUpperCase() + rule.type.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>${rule.amount.toFixed(2)}</TableCell>
-                          <TableCell>
-                            {rule.startDate && rule.endDate ? (
-                              <span className="text-sm">
-                                {format(new Date(rule.startDate), 'MMM d, yyyy')} - {format(new Date(rule.endDate), 'MMM d, yyyy')}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">Standard</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleEditRate(rule)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => {
-                                  if (window.confirm('Are you sure you want to delete this rate rule?')) {
-                                    deleteRateRule(rule.id);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <TabsContent value="list">
+          <RateListTabContent
+            roomTypes={roomTypes}
+            rateRules={rateRules}
+            selectedRoomTypes={selectedRoomTypes}
+            onEditRate={handleEditRate}
+            onDeleteRate={deleteRateRule}
+          />
+        </TabsContent>
         
-        {activeTab === 'promotions' && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Promotions</CardTitle>
-                <CardDescription>
-                  Manage special offers and discounts
-                </CardDescription>
-              </div>
-              <Button onClick={() => handleEditPromotion()}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Promotion
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {promotions.map(promotion => (
-                  <Card key={promotion.id} className="overflow-hidden">
-                    <CardHeader className="bg-muted/50 pb-2">
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg">{promotion.name}</CardTitle>
-                        <Badge variant={
-                          promotion.status === 'active' ? 'default' :
-                          promotion.status === 'scheduled' ? 'outline' :
-                          promotion.status === 'expired' ? 'secondary' :
-                          'destructive'
-                        }>
-                          {promotion.status.charAt(0).toUpperCase() + promotion.status.slice(1)}
-                        </Badge>
-                      </div>
-                      <CardDescription>
-                        {promotion.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-2">
-                      <div className="text-sm">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-muted-foreground">Discount:</span>
-                          <span className="font-medium">
-                            {promotion.discountType === 'percentage' ? 
-                              `${promotion.discountValue}%` : 
-                              `$${promotion.discountValue.toFixed(2)}`
-                            }
-                          </span>
-                        </div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-muted-foreground">Valid Until:</span>
-                          <span>{format(new Date(promotion.endDate), 'PP')}</span>
-                        </div>
-                        {promotion.minimumStay && (
-                          <div className="flex justify-between mb-1">
-                            <span className="text-muted-foreground">Min Stay:</span>
-                            <span>{promotion.minimumStay} nights</span>
-                          </div>
-                        )}
-                        {promotion.promoCode && (
-                          <div className="flex justify-between mb-1">
-                            <span className="text-muted-foreground">Promo Code:</span>
-                            <span className="font-mono">{promotion.promoCode}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Usage:</span>
-                          <span>{promotion.currentUsage} / {promotion.maxUsage || '∞'}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="flex justify-end space-x-2 border-t bg-muted/20 py-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleEditPromotion(promotion)}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <TabsContent value="promotions">
+          <PromotionsTabContent
+            promotions={promotions}
+            onEditPromotion={handleEditPromotion}
+          />
+        </TabsContent>
         
-        {activeTab === 'channels' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Channel Rates</CardTitle>
-              <CardDescription>
-                Manage rates across different distribution channels
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChannelRatesTable
-                roomTypes={activeRoomTypes}
-                channels={channels}
-                dateRange={dateRange}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <TabsContent value="channels">
+          <ChannelRatesTabContent
+            roomTypes={activeRoomTypes}
+            channels={channels}
+            dateRange={dateRange}
+          />
+        </TabsContent>
       </div>
       
-      {/* Rate Editor Dialog */}
-      <Dialog open={isRateEditorOpen} onOpenChange={setIsRateEditorOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedRateRule && 'id' in selectedRateRule ? 'Edit Rate' : 'Create New Rate'}
-            </DialogTitle>
-          </DialogHeader>
-          <RateEditor
-            rateRule={selectedRateRule}
-            roomTypes={roomTypes}
-            onSave={() => setIsRateEditorOpen(false)}
-            onCancel={() => setIsRateEditorOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Promotion Form Dialog */}
-      <Dialog open={isPromotionFormOpen} onOpenChange={setIsPromotionFormOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedPromotion ? 'Edit Promotion' : 'Create New Promotion'}
-            </DialogTitle>
-          </DialogHeader>
-          <PromotionForm
-            promotion={selectedPromotion}
-            roomTypes={roomTypes}
-            channels={channels}
-            onSave={() => setIsPromotionFormOpen(false)}
-            onCancel={() => setIsPromotionFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Rate History Dialog */}
-      <Dialog open={isHistoryLogOpen} onOpenChange={setIsHistoryLogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Rate Change History</DialogTitle>
-          </DialogHeader>
-          <RateHistoryLog roomTypes={roomTypes} />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Bulk Update Dialog */}
-      <Dialog open={isBulkUpdateOpen} onOpenChange={setIsBulkUpdateOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Bulk Rate Update</DialogTitle>
-            <DialogDescription>
-              Update multiple rates at once
-            </DialogDescription>
-          </DialogHeader>
-          <BulkRateUpdate
-            roomTypes={roomTypes}
-            selectedRoomTypes={selectedRoomTypes}
-            dateRange={dateRange}
-            onComplete={() => setIsBulkUpdateOpen(false)}
-            onCancel={() => setIsBulkUpdateOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Dialogs */}
+      <RateDialogs
+        roomTypes={roomTypes}
+        channels={channels}
+        selectedRoomTypes={selectedRoomTypes}
+        dateRange={dateRange}
+        isRateEditorOpen={isRateEditorOpen}
+        setIsRateEditorOpen={setIsRateEditorOpen}
+        isPromotionFormOpen={isPromotionFormOpen}
+        setIsPromotionFormOpen={setIsPromotionFormOpen}
+        isHistoryLogOpen={isHistoryLogOpen}
+        setIsHistoryLogOpen={setIsHistoryLogOpen}
+        isBulkUpdateOpen={isBulkUpdateOpen}
+        setIsBulkUpdateOpen={setIsBulkUpdateOpen}
+        selectedRateRule={selectedRateRule}
+        selectedPromotion={selectedPromotion}
+      />
     </div>
   );
 };
