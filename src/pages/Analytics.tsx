@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
-  BarChart, 
+  BarChart as BarChartIcon, 
   PieChart as PieChartIcon, 
   LineChart as LineChartIcon,
   Calendar,
@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateRange } from 'react-day-picker';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { CalendarDateRangePicker } from '@/components/ui/date-range-picker';
 import { 
   ResponsiveContainer, 
   LineChart, 
@@ -29,7 +29,9 @@ import {
   Pie,
   Cell,
   AreaChart,
-  Area
+  Area,
+  BarChart as RechartsBarChart,
+  Bar
 } from 'recharts';
 
 // Mock data
@@ -80,10 +82,10 @@ const Analytics = () => {
         </div>
         
         <div className="flex gap-2 w-full md:w-auto flex-wrap">
-          <DateRangePicker 
+          <CalendarDateRangePicker 
             className="w-full md:w-auto"
-            value={dateRange}
-            onValueChange={setDateRange}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
           />
           
           <Select value={property} onValueChange={setProperty}>
@@ -170,7 +172,7 @@ const Analytics = () => {
             Revenue
           </TabsTrigger>
           <TabsTrigger value="occupancy" className="flex items-center">
-            <BarChart className="h-4 w-4 mr-2" />
+            <BarChartIcon className="h-4 w-4 mr-2" />
             Occupancy
           </TabsTrigger>
           <TabsTrigger value="sources" className="flex items-center">
@@ -341,7 +343,7 @@ const Analytics = () => {
             <CardContent>
               <div className="h-80 mb-6">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <RechartsBarChart
                     data={roomTypeRevenueData}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
@@ -365,7 +367,7 @@ const Analytics = () => {
                       fill="#82ca9d" 
                       radius={[4, 4, 0, 0]}
                     />
-                  </BarChart>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </div>
               

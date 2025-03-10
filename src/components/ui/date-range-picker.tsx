@@ -79,9 +79,13 @@ export function CalendarDateRangePicker({
             selected={date}
             onSelect={setDate}
             numberOfMonths={2}
+            className={cn("p-3 pointer-events-auto")}
           />
         </PopoverContent>
       </Popover>
     </div>
   );
 }
+
+// Adding this alias for backward compatibility with existing imports
+export const DateRangePicker = CalendarDateRangePicker;
