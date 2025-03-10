@@ -126,108 +126,110 @@ const RateManagement: React.FC = () => {
     : roomTypes;
   
   return (
-    <div className="container mx-auto px-4 py-6 w-full max-w-full">
-      {/* Header with action buttons */}
-      <RateManagementHeader 
-        onBulkUpdateOpen={() => setIsBulkUpdateOpen(true)}
-        onCheckRateParity={handleCheckRateParity}
-        onHistoryLogOpen={() => setIsHistoryLogOpen(true)}
-        onNewPromotion={() => handleEditPromotion(null)}
-      />
-      
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-6">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-          <TabsTrigger value="calendar">
-            <Calendar className="mr-2 h-4 w-4" />
-            Calendar View
-          </TabsTrigger>
-          <TabsTrigger value="list">
-            <List className="mr-2 h-4 w-4" />
-            List View
-          </TabsTrigger>
-          <TabsTrigger value="promotions">
-            <Tag className="mr-2 h-4 w-4" />
-            Promotions
-          </TabsTrigger>
-          <TabsTrigger value="channels">
-            <Receipt className="mr-2 h-4 w-4" />
-            Channel Rates
-          </TabsTrigger>
-        </TabsList>
-        
-        {/* Tab Contents */}
-        <TabsContent value="calendar">
-          <CalendarTabContent
-            roomTypes={activeRoomTypes}
-            dateRange={dateRange}
-            selectedChannel={selectedChannel}
-            onEditRate={handleEditRate}
-          />
-        </TabsContent>
-        
-        <TabsContent value="list">
-          <RateListTabContent
-            roomTypes={roomTypes}
-            rateRules={rateRules}
-            selectedRoomTypes={selectedRoomTypes}
-            onEditRate={handleEditRate}
-            onDeleteRate={deleteRateRule}
-          />
-        </TabsContent>
-        
-        <TabsContent value="promotions">
-          <PromotionsTabContent
-            promotions={promotions}
-            onEditPromotion={handleEditPromotion}
-          />
-        </TabsContent>
-        
-        <TabsContent value="channels">
-          <ChannelRatesTabContent
-            roomTypes={activeRoomTypes}
-            channels={channels}
-            dateRange={dateRange}
-          />
-        </TabsContent>
-      </Tabs>
-      
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-        {/* Room Type Filter */}
-        <RoomTypeFilters
-          roomTypes={roomTypes}
-          selectedRoomTypes={selectedRoomTypes}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onRoomTypeToggle={handleRoomTypeToggle}
-          onCreateRate={handleCreateRate}
+    <div className="h-full w-full max-w-full overflow-x-hidden">
+      <div className="px-4 py-6 space-y-6">
+        {/* Header with action buttons */}
+        <RateManagementHeader 
+          onBulkUpdateOpen={() => setIsBulkUpdateOpen(true)}
+          onCheckRateParity={handleCheckRateParity}
+          onHistoryLogOpen={() => setIsHistoryLogOpen(true)}
+          onNewPromotion={() => handleEditPromotion(null)}
         />
         
-        {/* Date Range Filter */}
-        <DateRangeFilterCard
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+            <TabsTrigger value="calendar">
+              <Calendar className="mr-2 h-4 w-4" />
+              Calendar View
+            </TabsTrigger>
+            <TabsTrigger value="list">
+              <List className="mr-2 h-4 w-4" />
+              List View
+            </TabsTrigger>
+            <TabsTrigger value="promotions">
+              <Tag className="mr-2 h-4 w-4" />
+              Promotions
+            </TabsTrigger>
+            <TabsTrigger value="channels">
+              <Receipt className="mr-2 h-4 w-4" />
+              Channel Rates
+            </TabsTrigger>
+          </TabsList>
+          
+          {/* Tab Contents */}
+          <TabsContent value="calendar">
+            <CalendarTabContent
+              roomTypes={activeRoomTypes}
+              dateRange={dateRange}
+              selectedChannel={selectedChannel}
+              onEditRate={handleEditRate}
+            />
+          </TabsContent>
+          
+          <TabsContent value="list">
+            <RateListTabContent
+              roomTypes={roomTypes}
+              rateRules={rateRules}
+              selectedRoomTypes={selectedRoomTypes}
+              onEditRate={handleEditRate}
+              onDeleteRate={deleteRateRule}
+            />
+          </TabsContent>
+          
+          <TabsContent value="promotions">
+            <PromotionsTabContent
+              promotions={promotions}
+              onEditPromotion={handleEditPromotion}
+            />
+          </TabsContent>
+          
+          <TabsContent value="channels">
+            <ChannelRatesTabContent
+              roomTypes={activeRoomTypes}
+              channels={channels}
+              dateRange={dateRange}
+            />
+          </TabsContent>
+        </Tabs>
+        
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Room Type Filter */}
+          <RoomTypeFilters
+            roomTypes={roomTypes}
+            selectedRoomTypes={selectedRoomTypes}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onRoomTypeToggle={handleRoomTypeToggle}
+            onCreateRate={handleCreateRate}
+          />
+          
+          {/* Date Range Filter */}
+          <DateRangeFilterCard
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRangeChange}
+          />
+        </div>
+        
+        {/* Dialogs */}
+        <RateDialogs
+          roomTypes={roomTypes}
+          channels={channels}
+          selectedRoomTypes={selectedRoomTypes}
           dateRange={dateRange}
-          onDateRangeChange={handleDateRangeChange}
+          isRateEditorOpen={isRateEditorOpen}
+          setIsRateEditorOpen={setIsRateEditorOpen}
+          isPromotionFormOpen={isPromotionFormOpen}
+          setIsPromotionFormOpen={setIsPromotionFormOpen}
+          isHistoryLogOpen={isHistoryLogOpen}
+          setIsHistoryLogOpen={setIsHistoryLogOpen}
+          isBulkUpdateOpen={isBulkUpdateOpen}
+          setIsBulkUpdateOpen={setIsBulkUpdateOpen}
+          selectedRateRule={selectedRateRule}
+          selectedPromotion={selectedPromotion}
         />
       </div>
-      
-      {/* Dialogs */}
-      <RateDialogs
-        roomTypes={roomTypes}
-        channels={channels}
-        selectedRoomTypes={selectedRoomTypes}
-        dateRange={dateRange}
-        isRateEditorOpen={isRateEditorOpen}
-        setIsRateEditorOpen={setIsRateEditorOpen}
-        isPromotionFormOpen={isPromotionFormOpen}
-        setIsPromotionFormOpen={setIsPromotionFormOpen}
-        isHistoryLogOpen={isHistoryLogOpen}
-        setIsHistoryLogOpen={setIsHistoryLogOpen}
-        isBulkUpdateOpen={isBulkUpdateOpen}
-        setIsBulkUpdateOpen={setIsBulkUpdateOpen}
-        selectedRateRule={selectedRateRule}
-        selectedPromotion={selectedPromotion}
-      />
     </div>
   );
 };
