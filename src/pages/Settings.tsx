@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ConfigPanel from '@/components/settings/ConfigPanel';
 
 const Settings = () => {
   return (
@@ -22,17 +23,7 @@ const Settings = () => {
         </TabsList>
         
         <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>
-                Configure basic settings for your channel manager
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>General settings content will be implemented here.</p>
-            </CardContent>
-          </Card>
+          <ConfigPanel />
         </TabsContent>
         
         <TabsContent value="account">
