@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Paypal, X } from 'lucide-react';
+import { CreditCard, DollarSign, X } from 'lucide-react';
 import { TabsContent, Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const PaymentForm: React.FC = () => {
@@ -19,7 +19,7 @@ const PaymentForm: React.FC = () => {
             Credit Card
           </TabsTrigger>
           <TabsTrigger value="paypal" className="flex items-center gap-2">
-            <Paypal className="h-4 w-4" />
+            <DollarSign className="h-4 w-4" />
             PayPal
           </TabsTrigger>
         </TabsList>
