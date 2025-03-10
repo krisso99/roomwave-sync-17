@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, isWithinInterval, parse } from 'date-fns';
-import { Calendar, CalendarCell, CalendarDays, CalendarGrid, CalendarGridBody, CalendarGridHeader, CalendarHeader, CalendarHeading, CalendarMonth, CalendarMonthName, CalendarNext, CalendarPrevious, CalendarTrigger } from '@/components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

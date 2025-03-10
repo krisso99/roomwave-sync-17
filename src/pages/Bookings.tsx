@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -145,7 +144,6 @@ const Bookings = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [sortField, setSortField] = useState<string>('createdAt');
 
-  // Filter bookings based on search query and filters
   const filteredBookings = mockBookings.filter(booking => {
     const matchesSearch = 
       booking.guest.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -158,7 +156,6 @@ const Bookings = () => {
     return matchesSearch && matchesStatus && matchesChannel;
   });
 
-  // Sort bookings
   const sortedBookings = [...filteredBookings].sort((a, b) => {
     let comparison = 0;
     
@@ -196,7 +193,6 @@ const Bookings = () => {
   };
 
   const handleAddBooking = () => {
-    // Add booking logic would go here
     toast({
       title: "Booking added",
       description: "The new booking has been successfully added.",
@@ -205,7 +201,6 @@ const Bookings = () => {
   };
 
   const handleCancelBooking = (id: string) => {
-    // Cancel booking logic would go here
     toast({
       title: "Booking cancelled",
       description: `Booking #${id} has been cancelled.`,
