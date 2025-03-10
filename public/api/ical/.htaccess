@@ -11,4 +11,16 @@
   ForceType text/calendar
   Header set Content-Type "text/calendar; charset=utf-8"
   Header set Content-Disposition "attachment; filename=calendar.ics"
+  Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
 </Files>
+
+# Prevent caching of iCal feeds
+<IfModule mod_headers.c>
+  <FilesMatch "\.(ics|js)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
