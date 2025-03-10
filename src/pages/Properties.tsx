@@ -30,15 +30,12 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/use-toast';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { PropertyForm } from '@/components/properties/PropertyForm';
 
 // Mock data for properties
 const mockProperties = [
@@ -49,6 +46,7 @@ const mockProperties = [
     city: 'Marrakech',
     country: 'Morocco',
     totalRooms: 8,
+    type: 'riad',
     imageUrl: 'https://images.unsplash.com/photo-1560185893-a55cbc8c57e8?ixlib=rb-1.2.1&auto=format&fit=crop&w=750&q=80',
     createdAt: '2023-01-15T12:30:00Z',
     updatedAt: '2023-05-20T08:45:00Z',
@@ -60,6 +58,7 @@ const mockProperties = [
     city: 'Essaouira',
     country: 'Morocco',
     totalRooms: 12,
+    type: 'guesthouse',
     imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-1.2.1&auto=format&fit=crop&w=750&q=80',
     createdAt: '2023-02-22T10:15:00Z',
     updatedAt: '2023-06-10T14:20:00Z',
@@ -71,6 +70,7 @@ const mockProperties = [
     city: 'Asni',
     country: 'Morocco',
     totalRooms: 28,
+    type: 'hotel',
     imageUrl: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?ixlib=rb-1.2.1&auto=format&fit=crop&w=750&q=80',
     createdAt: '2023-03-05T09:45:00Z',
     updatedAt: '2023-07-15T11:30:00Z',
@@ -82,36 +82,21 @@ const mockProperties = [
     city: 'Marrakech',
     country: 'Morocco',
     totalRooms: 11,
+    type: 'riad',
     imageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=750&q=80',
     createdAt: '2023-04-18T15:20:00Z',
     updatedAt: '2023-08-22T16:10:00Z',
   },
 ];
 
-interface PropertyFormData {
-  name: string;
-  address: string;
-  city: string;
-  country: string;
-  description: string;
-  totalRooms: number;
-}
-
 const Properties = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<PropertyFormData>({
-    name: '',
-    address: '',
-    city: '',
-    country: 'Morocco',
-    description: '',
-    totalRooms: 1,
-  });
+  const [properties, setProperties] = useState(mockProperties);
 
   // Filter properties based on search query
-  const filteredProperties = mockProperties.filter(property => 
+  const filteredProperties = properties.filter(property => 
     property.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     property.city.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -120,38 +105,42 @@ const Properties = () => {
     navigate(`/app/properties/${id}`);
   };
 
-  const handleAddProperty = () => {
-    // Add property logic would go here
+  const handleAddProperty = (formData: any) => {
+    // In a real application, you would send this data to the backend
+    const newProperty = {
+      id: `${properties.length + 1}`,
+      name: formData.name,
+      address: formData.address,
+      city: formData.city,
+      country: formData.country,
+      type: formData.type || 'riad',
+      totalRooms: 0, // This would be updated as rooms are added
+      imageUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=750&q=80', // Default image
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setProperties([...properties, newProperty]);
+    setIsAddDialogOpen(false);
+    
     toast({
       title: "Property added",
       description: `${formData.name} has been successfully added.`,
     });
-    setIsAddDialogOpen(false);
-    setFormData({
-      name: '',
-      address: '',
-      city: '',
-      country: 'Morocco',
-      description: '',
-      totalRooms: 1,
-    });
+    
+    // Navigate to the new property detail page
+    navigate(`/app/properties/${newProperty.id}`);
   };
 
   const handleDeleteProperty = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Delete property logic would go here
+    // Delete property logic
+    setProperties(properties.filter(property => property.id !== id));
+    
     toast({
       title: "Property deleted",
       description: `${name} has been successfully deleted.`,
     });
-  };
-
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'totalRooms' ? parseInt(value) || 0 : value,
-    }));
   };
 
   return (
@@ -171,110 +160,18 @@ const Properties = () => {
           </div>
           
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Property
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <Button className="w-full sm:w-auto" onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Property
+            </Button>
+            <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Property</DialogTitle>
-                <DialogDescription>
-                  Enter the details of your property to add it to your channel manager.
-                </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleFormChange}
-                    placeholder="Property name"
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="address" className="text-right">
-                    Address
-                  </Label>
-                  <Input
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleFormChange}
-                    placeholder="Street address"
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="city" className="text-right">
-                    City
-                  </Label>
-                  <Input
-                    id="city"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleFormChange}
-                    placeholder="City"
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="country" className="text-right">
-                    Country
-                  </Label>
-                  <Input
-                    id="country"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleFormChange}
-                    placeholder="Country"
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="totalRooms" className="text-right">
-                    Total Rooms
-                  </Label>
-                  <Input
-                    id="totalRooms"
-                    name="totalRooms"
-                    type="number"
-                    min="1"
-                    value={formData.totalRooms}
-                    onChange={handleFormChange}
-                    placeholder="Number of rooms"
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="description" className="text-right pt-2">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleFormChange}
-                    placeholder="Property description"
-                    className="col-span-3"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddProperty}>
-                  Add Property
-                </Button>
-              </DialogFooter>
+              <PropertyForm
+                onSubmit={handleAddProperty}
+                onCancel={() => setIsAddDialogOpen(false)}
+              />
             </DialogContent>
           </Dialog>
         </div>
