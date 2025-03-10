@@ -74,7 +74,7 @@ const MakeWorkflowGuide: React.FC = () => {
                   <p className="font-semibold">Sample HTTP Request Configuration:</p>
                   <p>URL: <Code>https://your-app.com/api/availability</Code></p>
                   <p>Method: <Code>GET</Code></p>
-                  <p>Headers: <Code>{"Content-Type": "application/json", "Authorization": "Bearer YOUR_API_KEY"}</Code></p>
+                  <p>Headers: <Code>{`{"Content-Type": "application/json", "Authorization": "Bearer YOUR_API_KEY"}`}</Code></p>
                 </div>
               </div>
               
