@@ -126,7 +126,7 @@ const RateManagement: React.FC = () => {
     : roomTypes;
   
   return (
-    <div className="animate-fade-in space-y-8">
+    <div className="container mx-auto px-4 py-6 w-full max-w-full">
       {/* Header with action buttons */}
       <RateManagementHeader 
         onBulkUpdateOpen={() => setIsBulkUpdateOpen(true)}
@@ -136,7 +136,7 @@ const RateManagement: React.FC = () => {
       />
       
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-6">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
           <TabsTrigger value="calendar">
             <Calendar className="mr-2 h-4 w-4" />
@@ -193,7 +193,7 @@ const RateManagement: React.FC = () => {
       </Tabs>
       
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
         {/* Room Type Filter */}
         <RoomTypeFilters
           roomTypes={roomTypes}
