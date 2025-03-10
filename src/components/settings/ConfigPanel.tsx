@@ -51,9 +51,25 @@ const defaultValues: Partial<ConfigFormValues> = {
   maxBookingWindow: 365,
 };
 
+// Define interface for the system configuration table row
+interface SystemConfigurationRow {
+  id: string;
+  site_name: string;
+  site_url: string;
+  email_from: string;
+  enable_booking_notifications: boolean;
+  enable_guest_portal: boolean;
+  maintenance_mode: boolean;
+  booking_lead_time: number;
+  max_booking_window: number;
+  created_at: string;
+  updated_at: string;
+}
+
 const ConfigPanel = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const [configId, setConfigId] = useState<string | null>(null);
   
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configSchema),
@@ -78,16 +94,19 @@ const ConfigPanel = () => {
         }
         
         if (data) {
+          // Store the config ID for later use
+          setConfigId((data as SystemConfigurationRow).id);
+          
           // Map from snake_case DB columns to camelCase form fields
           form.reset({
-            siteName: data.site_name,
-            siteUrl: data.site_url,
-            emailFrom: data.email_from,
-            enableBookingNotifications: data.enable_booking_notifications,
-            enableGuestPortal: data.enable_guest_portal,
-            maintenanceMode: data.maintenance_mode,
-            bookingLeadTime: data.booking_lead_time,
-            maxBookingWindow: data.max_booking_window,
+            siteName: (data as SystemConfigurationRow).site_name,
+            siteUrl: (data as SystemConfigurationRow).site_url,
+            emailFrom: (data as SystemConfigurationRow).email_from,
+            enableBookingNotifications: (data as SystemConfigurationRow).enable_booking_notifications,
+            enableGuestPortal: (data as SystemConfigurationRow).enable_guest_portal,
+            maintenanceMode: (data as SystemConfigurationRow).maintenance_mode,
+            bookingLeadTime: (data as SystemConfigurationRow).booking_lead_time,
+            maxBookingWindow: (data as SystemConfigurationRow).max_booking_window,
           });
         }
       } catch (error) {
@@ -102,6 +121,10 @@ const ConfigPanel = () => {
 
   const onSubmit = async (data: ConfigFormValues) => {
     try {
+      if (!configId) {
+        throw new Error("Configuration ID not found");
+      }
+      
       // Save configuration to Supabase
       const { error } = await supabase
         .from('system_configuration')
@@ -115,7 +138,7 @@ const ConfigPanel = () => {
           booking_lead_time: data.bookingLeadTime,
           max_booking_window: data.maxBookingWindow,
         })
-        .eq('id', (await supabase.from('system_configuration').select('id').limit(1).single()).data?.id);
+        .eq('id', configId);
       
       if (error) {
         throw error;

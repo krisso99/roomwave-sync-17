@@ -22,6 +22,24 @@ export interface ICalFeed {
   updatedAt: Date;
 }
 
+// Define interface for the iCal feed table row
+interface ICalFeedRow {
+  id: string;
+  name: string;
+  url: string;
+  property_id: string;
+  room_id: string | null;
+  last_sync: string | null;
+  auto_sync: boolean;
+  sync_interval: number;
+  status: string;
+  error: string | null;
+  direction: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ICalEvent {
   uid: string;
   summary: string;
@@ -85,7 +103,7 @@ export class ICalService {
       }
       
       // Convert the Supabase data to ICalFeed objects
-      const feeds: ICalFeed[] = data.map(feed => ({
+      const feeds: ICalFeed[] = (data as ICalFeedRow[]).map(feed => ({
         id: feed.id,
         name: feed.name,
         url: feed.url,
@@ -95,7 +113,7 @@ export class ICalService {
         autoSync: feed.auto_sync,
         syncInterval: feed.sync_interval,
         status: feed.status as 'active' | 'error' | 'pending',
-        error: feed.error,
+        error: feed.error || undefined,
         direction: feed.direction as 'import' | 'export' | 'both',
         priority: feed.priority,
         createdAt: new Date(feed.created_at),
@@ -127,21 +145,22 @@ export class ICalService {
       }
       
       // Convert the Supabase data to an ICalFeed object
+      const feedData = data as ICalFeedRow;
       const feed: ICalFeed = {
-        id: data.id,
-        name: data.name,
-        url: data.url,
-        propertyId: data.property_id,
-        roomId: data.room_id || undefined,
-        lastSync: data.last_sync ? new Date(data.last_sync) : null,
-        autoSync: data.auto_sync,
-        syncInterval: data.sync_interval,
-        status: data.status as 'active' | 'error' | 'pending',
-        error: data.error,
-        direction: data.direction as 'import' | 'export' | 'both',
-        priority: data.priority,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        id: feedData.id,
+        name: feedData.name,
+        url: feedData.url,
+        propertyId: feedData.property_id,
+        roomId: feedData.room_id || undefined,
+        lastSync: feedData.last_sync ? new Date(feedData.last_sync) : null,
+        autoSync: feedData.auto_sync,
+        syncInterval: feedData.sync_interval,
+        status: feedData.status as 'active' | 'error' | 'pending',
+        error: feedData.error || undefined,
+        direction: feedData.direction as 'import' | 'export' | 'both',
+        priority: feedData.priority,
+        createdAt: new Date(feedData.created_at),
+        updatedAt: new Date(feedData.updated_at)
       };
       
       return feed;
@@ -170,21 +189,22 @@ export class ICalService {
       }
       
       // Convert the Supabase data to an ICalFeed object
+      const feedData = data as ICalFeedRow;
       const newFeed: ICalFeed = {
-        id: data.id,
-        name: data.name,
-        url: data.url,
-        propertyId: data.property_id,
-        roomId: data.room_id || undefined,
-        lastSync: data.last_sync ? new Date(data.last_sync) : null,
-        autoSync: data.auto_sync,
-        syncInterval: data.sync_interval,
-        status: data.status as 'active' | 'error' | 'pending',
-        error: data.error,
-        direction: data.direction as 'import' | 'export' | 'both',
-        priority: data.priority,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        id: feedData.id,
+        name: feedData.name,
+        url: feedData.url,
+        propertyId: feedData.property_id,
+        roomId: feedData.room_id || undefined,
+        lastSync: feedData.last_sync ? new Date(feedData.last_sync) : null,
+        autoSync: feedData.auto_sync,
+        syncInterval: feedData.sync_interval,
+        status: feedData.status as 'active' | 'error' | 'pending',
+        error: feedData.error || undefined,
+        direction: feedData.direction as 'import' | 'export' | 'both',
+        priority: feedData.priority,
+        createdAt: new Date(feedData.created_at),
+        updatedAt: new Date(feedData.updated_at)
       };
       
       return newFeed;
@@ -228,21 +248,22 @@ export class ICalService {
       }
       
       // Convert the Supabase data to an ICalFeed object
+      const feedData = data as ICalFeedRow;
       const updatedFeed: ICalFeed = {
-        id: data.id,
-        name: data.name,
-        url: data.url,
-        propertyId: data.property_id,
-        roomId: data.room_id || undefined,
-        lastSync: data.last_sync ? new Date(data.last_sync) : null,
-        autoSync: data.auto_sync,
-        syncInterval: data.sync_interval,
-        status: data.status as 'active' | 'error' | 'pending',
-        error: data.error,
-        direction: data.direction as 'import' | 'export' | 'both',
-        priority: data.priority,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        id: feedData.id,
+        name: feedData.name,
+        url: feedData.url,
+        propertyId: feedData.property_id,
+        roomId: feedData.room_id || undefined,
+        lastSync: feedData.last_sync ? new Date(feedData.last_sync) : null,
+        autoSync: feedData.auto_sync,
+        syncInterval: feedData.sync_interval,
+        status: feedData.status as 'active' | 'error' | 'pending',
+        error: feedData.error || undefined,
+        direction: feedData.direction as 'import' | 'export' | 'both',
+        priority: feedData.priority,
+        createdAt: new Date(feedData.created_at),
+        updatedAt: new Date(feedData.updated_at)
       };
       
       return updatedFeed;

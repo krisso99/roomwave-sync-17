@@ -597,6 +597,57 @@ export type Database = {
         }
         Relationships: []
       }
+      ical_feeds: {
+        Row: {
+          auto_sync: boolean
+          created_at: string
+          direction: string
+          error: string | null
+          id: string
+          last_sync: string | null
+          name: string
+          priority: number
+          property_id: string
+          room_id: string | null
+          status: string
+          sync_interval: number
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          auto_sync?: boolean
+          created_at?: string
+          direction?: string
+          error?: string | null
+          id?: string
+          last_sync?: string | null
+          name: string
+          priority?: number
+          property_id: string
+          room_id?: string | null
+          status?: string
+          sync_interval?: number
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          auto_sync?: boolean
+          created_at?: string
+          direction?: string
+          error?: string | null
+          id?: string
+          last_sync?: string | null
+          name?: string
+          priority?: number
+          property_id?: string
+          room_id?: string | null
+          status?: string
+          sync_interval?: number
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       make_webhooks: {
         Row: {
           active: boolean
@@ -1126,6 +1177,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_configuration: {
+        Row: {
+          booking_lead_time: number
+          created_at: string
+          email_from: string
+          enable_booking_notifications: boolean
+          enable_guest_portal: boolean
+          id: string
+          maintenance_mode: boolean
+          max_booking_window: number
+          site_name: string
+          site_url: string
+          updated_at: string
+        }
+        Insert: {
+          booking_lead_time?: number
+          created_at?: string
+          email_from: string
+          enable_booking_notifications?: boolean
+          enable_guest_portal?: boolean
+          id?: string
+          maintenance_mode?: boolean
+          max_booking_window?: number
+          site_name: string
+          site_url: string
+          updated_at?: string
+        }
+        Update: {
+          booking_lead_time?: number
+          created_at?: string
+          email_from?: string
+          enable_booking_notifications?: boolean
+          enable_guest_portal?: boolean
+          id?: string
+          maintenance_mode?: boolean
+          max_booking_window?: number
+          site_name?: string
+          site_url?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       tasks: {
         Row: {
