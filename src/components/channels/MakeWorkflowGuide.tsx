@@ -137,7 +137,7 @@ const MakeWorkflowGuide: React.FC = () => {
                 </p>
                 <div className="bg-muted p-3 rounded-md mt-2 text-xs">
                   <p className="font-semibold">Sample Formula for Expedia (10% markup):</p>
-                  <Code>&#123;&#123;Math.round(rate * 1.1)&#125;&#125;</Code>
+                  <Code>{`{{Math.round(rate * 1.1)}}`}</Code>
                 </div>
               </div>
               
