@@ -183,6 +183,16 @@ export function InventoryCalendar() {
       
       const dateKey = format(selectedDay.date, "yyyy-MM-dd");
       
+      // Determine the status based on the availability and closed state
+      const status: "vacant" | "booked" | "partially-booked" | "closed" = 
+        editClosed 
+          ? "closed" 
+          : editAvailable === 0 
+            ? "booked" 
+            : editAvailable < (currentRoomType?.quantity || 0) 
+              ? "partially-booked" 
+              : "vacant";
+      
       // Update the inventory for the selected day
       const updatedInventory = {
         ...roomInventory.inventory,
@@ -195,13 +205,7 @@ export function InventoryCalendar() {
             maxStay: editMaxStay,
             closed: editClosed
           },
-          status: editClosed 
-            ? "closed" 
-            : editAvailable === 0 
-              ? "booked" 
-              : editAvailable < (currentRoomType?.quantity || 0) 
-                ? "partially-booked" 
-                : "vacant"
+          status
         }
       };
       
@@ -243,13 +247,31 @@ export function InventoryCalendar() {
           restrictions: {}
         };
         
+        // Determine if the day should be closed
+        const isClosed = bulkEditOptions.updateRestrictions 
+          ? bulkEditOptions.closed 
+          : !!currentDay.restrictions?.closed;
+        
+        // Calculate the new available rooms
+        const newAvailable = bulkEditOptions.updateAvailability 
+          ? (isClosed ? 0 : bulkEditOptions.available)
+          : isClosed ? 0 : currentDay.available;
+        
+        // Determine the status based on availability and closed state
+        const status: "vacant" | "booked" | "partially-booked" | "closed" = 
+          isClosed 
+            ? "closed" 
+            : newAvailable === 0 
+              ? "booked" 
+              : newAvailable < (currentRoomType?.quantity || 0) 
+                ? "partially-booked" 
+                : "vacant";
+        
         // Update only the fields that are selected
-        const updatedDay = {
+        updatedInventory[dateKey] = {
           ...currentDay,
           price: bulkEditOptions.updatePrice ? bulkEditOptions.price : currentDay.price,
-          available: bulkEditOptions.updateAvailability 
-            ? (bulkEditOptions.closed ? 0 : bulkEditOptions.available)
-            : currentDay.available,
+          available: newAvailable,
           restrictions: {
             ...currentDay.restrictions,
             ...(bulkEditOptions.updateRestrictions && {
@@ -257,20 +279,7 @@ export function InventoryCalendar() {
               maxStay: bulkEditOptions.maxStay || undefined,
               closed: bulkEditOptions.closed
             })
-          }
-        };
-        
-        // Determine the status based on the availability
-        const status = bulkEditOptions.closed || updatedDay.restrictions?.closed
-          ? "closed"
-          : updatedDay.available === 0
-            ? "booked"
-            : updatedDay.available < (currentRoomType?.quantity || 0)
-              ? "partially-booked"
-              : "vacant";
-        
-        updatedInventory[dateKey] = {
-          ...updatedDay,
+          },
           status
         };
       });
