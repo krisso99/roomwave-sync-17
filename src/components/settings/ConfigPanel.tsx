@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,8 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+
+const CONFIG_STORAGE_KEY = 'riadsync-configuration';
 
 const configSchema = z.object({
   siteName: z.string().min(2, {
@@ -53,14 +55,42 @@ const defaultValues: Partial<ConfigFormValues> = {
 const ConfigPanel = () => {
   const { toast } = useToast();
   
+  // Load saved configuration or use defaults
+  const loadSavedConfig = (): Partial<ConfigFormValues> => {
+    const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (savedConfig) {
+      try {
+        const parsedConfig = JSON.parse(savedConfig);
+        return { ...defaultValues, ...parsedConfig };
+      } catch (error) {
+        console.error('Error parsing saved configuration:', error);
+        return defaultValues;
+      }
+    }
+    return defaultValues;
+  };
+  
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configSchema),
-    defaultValues,
+    defaultValues: loadSavedConfig(),
   });
 
+  // Initialize form with saved values when component mounts
+  useEffect(() => {
+    const savedValues = loadSavedConfig();
+    Object.keys(savedValues).forEach(key => {
+      form.setValue(key as keyof ConfigFormValues, 
+        savedValues[key as keyof ConfigFormValues] as any);
+    });
+  }, []);
+
   const onSubmit = (data: ConfigFormValues) => {
-    // In a real app, this would be an API call to save configuration
+    // Save configuration to localStorage
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(data));
+    
+    // In a real app, this would also be an API call to save configuration
     console.log("Configuration saved:", data);
+    
     toast({
       title: "Configuration saved",
       description: "Your changes have been saved successfully.",
