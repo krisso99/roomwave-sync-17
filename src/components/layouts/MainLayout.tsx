@@ -1,6 +1,5 @@
 
-import { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { useState, useEffect, ReactNode } from "react";
 import { 
   SidebarProvider, 
   Sidebar, 
@@ -30,14 +29,18 @@ import {
   DollarSign,
   Percent
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "@/components/ui/use-toast";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 
-const MainLayout = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+interface MainLayoutProps {
+  children: ReactNode;
+}
+
+const MainLayout = ({ children }: MainLayoutProps) => {
+  const pathname = usePathname();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -62,20 +65,16 @@ const MainLayout = () => {
   };
 
   const menuItems = [
-    { label: "Dashboard", path: "/app", icon: Home },
-    { label: "Properties", path: "/app/properties", icon: Hotel },
-    { label: "Bookings", path: "/app/bookings", icon: BookOpen },
-    { label: "Calendar", path: "/app/calendar", icon: CalendarDays },
-    { label: "Channels", path: "/app/channels", icon: Link2 },
-    { label: "Rates", path: "/app/rates", icon: Percent },
-    { label: "Analytics", path: "/app/analytics", icon: BarChart3 },
-    { label: "Users", path: "/app/users", icon: Users },
-    { label: "Settings", path: "/app/settings", icon: Settings },
+    { label: "Dashboard", path: "/", icon: Home },
+    { label: "Properties", path: "/properties", icon: Hotel },
+    { label: "Bookings", path: "/bookings", icon: BookOpen },
+    { label: "Calendar", path: "/calendar", icon: CalendarDays },
+    { label: "Channels", path: "/channels", icon: Link2 },
+    { label: "Rates", path: "/rates", icon: Percent },
+    { label: "Analytics", path: "/analytics", icon: BarChart3 },
+    { label: "Users", path: "/users", icon: Users },
+    { label: "Settings", path: "/settings", icon: Settings },
   ];
-
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
 
   const handleLogout = () => {
     // Implement logout logic here
@@ -83,7 +82,8 @@ const MainLayout = () => {
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
-    navigate("/");
+    // Navigate to root in Next.js
+    window.location.href = "/";
   };
 
   return (
@@ -110,13 +110,15 @@ const MainLayout = () => {
                 <SidebarMenu>
                   {menuItems.map((item) => (
                     <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton 
-                        isActive={location.pathname === item.path}
-                        onClick={() => handleNavigation(item.path)}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
+                      <Link href={item.path} passHref>
+                        <SidebarMenuButton 
+                          isActive={pathname === item.path}
+                          component="a"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </Link>
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
@@ -152,8 +154,8 @@ const MainLayout = () => {
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               <h1 className="text-xl font-medium">
-                {menuItems.find(item => item.path === location.pathname)?.label || 
-                 menuItems.find(item => location.pathname.startsWith(item.path))?.label || 
+                {menuItems.find(item => pathname === item.path)?.label || 
+                 menuItems.find(item => pathname.startsWith(item.path + '/'))?.label || 
                  "Dashboard"}
               </h1>
             </div>
@@ -168,7 +170,7 @@ const MainLayout = () => {
             </div>
           </header>
           <main className="p-6 h-[calc(100vh-3.5rem)] overflow-y-auto">
-            <Outlet />
+            {children}
           </main>
         </div>
       </div>
