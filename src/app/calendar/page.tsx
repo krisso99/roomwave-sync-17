@@ -1,5 +1,5 @@
 
-import { MainLayout } from "@/components/layouts/MainLayout";
+import MainLayout from "@/components/layouts/MainLayout";
 import CalendarView from "@/pages/CalendarView";
 
 export default function CalendarPage() {

@@ -1,5 +1,5 @@
 
-import { MainLayout } from "@/components/layouts/MainLayout";
+import MainLayout from "@/components/layouts/MainLayout";
 import UserManagement from "@/pages/UserManagement";
 
 export default function UsersPage() {

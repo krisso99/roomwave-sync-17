@@ -1,5 +1,5 @@
 
-import { MainLayout } from "@/components/layouts/MainLayout";
+import MainLayout from "@/components/layouts/MainLayout";
 import RateManagement from "@/pages/RateManagement";
 
 export default function RatesPage() {

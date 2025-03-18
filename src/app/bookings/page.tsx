@@ -1,5 +1,5 @@
 
-import { MainLayout } from "@/components/layouts/MainLayout";
+import MainLayout from "@/components/layouts/MainLayout";
 import Bookings from "@/pages/Bookings";
 
 export default function BookingsPage() {
