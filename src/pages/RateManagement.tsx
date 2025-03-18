@@ -126,8 +126,8 @@ const RateManagement: React.FC = () => {
     : roomTypes;
   
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="px-4 py-6 space-y-6">
+    <div className="w-full">
+      <div className="container px-0 py-6 mx-auto space-y-6">
         {/* Header with action buttons */}
         <RateManagementHeader 
           onBulkUpdateOpen={() => setIsBulkUpdateOpen(true)}
