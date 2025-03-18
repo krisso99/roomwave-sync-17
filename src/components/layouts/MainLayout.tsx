@@ -113,10 +113,12 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                       <Link href={item.path} passHref>
                         <SidebarMenuButton 
                           isActive={pathname === item.path}
-                          component="a"
+                          asChild
                         >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
+                          <a>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </a>
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
